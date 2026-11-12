@@ -87,6 +87,7 @@
   .card .del { position:absolute; top:6px; right:6px; width:28px; height:28px; border-radius:50%; border:0; background:rgba(0,0,0,.65); color:#fff; font-size:14px; }
   .empty { color:#777; font-size:13px; line-height:1.7; }
   #storage { color:#666; font-size:11px; margin-top:12px; }
+  .ver { color:#666; font-size:11px; margin-top:8px; text-align:center; }
 
   /* ===== 設定 ===== */
   #sheet { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.55); display:none; align-items:flex-end; }
@@ -141,6 +142,8 @@
   <div id="recent"></div>
   <div id="storage"></div>
   <div style="margin-top:22px"><button class="btn ghost" id="setBtn2">⚙︎ 設定</button></div>
+  <div style="margin-top:10px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
+  <div class="ver"></div>
 </div>
 
 <div id="sheet">
@@ -162,7 +165,9 @@
     ・時計とバッテリーを消したいときは、iPhoneの画面回転ロックを外して「縦」モードのまま本体を横にしてな<br>
     ・動画が固まったら ↻ で再読み込み（同じ位置から再開）<br>
     ・動画はiPhoneの中で再生されるだけで、どこにも送信されへんで</p>
-    <div style="margin-top:16px"><button class="btn" id="closeSheet">閉じる</button></div>
+    <div style="margin-top:16px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
+    <div class="ver"></div>
+    <div style="margin-top:10px"><button class="btn" id="closeSheet">閉じる</button></div>
   </div>
 </div>
 
@@ -171,6 +176,21 @@
   const $ = id => document.getElementById(id);
   const v = $('v'), g = $('gesture'), stage = $('stage');
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+
+  // ================= アプリ更新 =================
+  const APP_VERSION = '2026.11.13-5';
+  document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
+  document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
+    const label = btn.textContent;
+    btn.textContent = '確認中…';
+    try {
+      const html = await (await fetch('./?check=' + Date.now(), { cache:'no-store' })).text();
+      const m = html.match(/APP_VERSION = '([^']+)'/);
+      if (m && m[1] !== APP_VERSION) { btn.textContent = '更新中…'; savePos(); location.replace('./?v=' + Date.now()); return; }
+      btn.textContent = m ? '✓ 最新版やで' : '確認できへんかった';
+    } catch(e) { btn.textContent = '通信できへんかった'; }
+    setTimeout(() => btn.textContent = label, 2000);
+  }));
 
   // ================= 設定 =================
   const store = {
@@ -500,6 +520,11 @@
 
   // ================= 明るさ・音量 =================
   let bright = store.get('bright', 1), vol = store.get('vol', 1);
+  function applyBright(){
+    $('dim').style.opacity = bright < 1 ? (1 - bright).toFixed(2) : 0;
+    v.style.filter = bright > 1 ? `brightness(${bright.toFixed(2)})` : '';
+  }
+  applyBright();
   // iPhoneはWebから音量を変えられへん（変えようとすると音ズレの原因になる）ので、対応端末だけ音量・iPhoneはミュート切替
   const canVol = (() => { const t = document.createElement('video'); try { t.volume = 0.5; } catch(e){} return t.volume === 0.5; })();
   try { v.volume = canVol ? vol : 1; } catch(e){}
