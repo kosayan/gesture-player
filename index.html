@@ -134,7 +134,7 @@
   <h1>🎬 ジェスチャー動画プレイヤー</h1>
   <p class="sub">長押し＝倍速 ／ ダブルタップ＝下2/3でスキップ・上1/3で巻き戻し<br>
   左右スワイプ＝早送り・巻き戻し（速く動かすほど大きく飛ぶ）<br>
-  左側の上下スワイプ＝明るさ ／ 右側の上下スワイプ＝音量</p>
+  左側の上下スワイプ＝明るさ ／ 右側の上下スワイプ＝ミュート切替</p>
   <button class="btn" id="openBtn">＋ 動画を選ぶ</button>
   <input type="file" id="file" accept="video/*" hidden>
   <h2>最近の動画（タップですぐ再生）</h2>
@@ -460,31 +460,10 @@
 
   // ================= 明るさ・音量 =================
   let bright = store.get('bright', 1), vol = store.get('vol', 1);
-  let actx = null, gainNode = null, audioFailed = false;
-  function applyBright(){
-    $('dim').style.opacity = bright < 1 ? (1 - bright).toFixed(2) : 0;
-    v.style.filter = bright > 1 ? `brightness(${bright.toFixed(2)})` : '';
-  }
-  applyBright();
-  function ensureAudio(){
-    if (actx || audioFailed) return !!actx;
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      actx = new AC();
-      const src = actx.createMediaElementSource(v);
-      gainNode = actx.createGain(); gainNode.gain.value = vol;
-      src.connect(gainNode); gainNode.connect(actx.destination);
-      actx.resume().catch(()=>{});
-      return true;
-    } catch(e){ audioFailed = true; actx = null; return false; }
-  }
-  function applyVol(){
-    if (gainNode) gainNode.gain.value = vol;
-    try { v.volume = clamp(vol, 0, 1); } catch(e){}
-  }
-  const resumeAudio = () => { if (actx && actx.state !== 'running') actx.resume().catch(()=>{}); };
-  v.addEventListener('play', resumeAudio);
-  let ensureAudioLater = vol < 1;
+  // iPhoneはWebから音量を変えられへん（変えようとすると音ズレの原因になる）ので、対応端末だけ音量・iPhoneはミュート切替
+  const canVol = (() => { const t = document.createElement('video'); try { t.volume = 0.5; } catch(e){} return t.volume === 0.5; })();
+  try { v.volume = canVol ? vol : 1; } catch(e){}
+  let volAcc = 0;
 
   // ================= ジェスチャー =================
   const HOLD_MS = 350, DOUBLE_MS = 280;
@@ -495,8 +474,6 @@
   g.addEventListener('touchstart', e => {
     if (!v.src) return;
     e.preventDefault();
-    resumeAudio();
-    if (ensureAudioLater) { ensureAudioLater = false; if (ensureAudio()) applyVol(); }
     const t = e.touches[0];
     s0 = toLocal(t.clientX, t.clientY); st = Date.now(); mode = null;
     lastX = s0.x; lastY = s0.y; lastT = performance.now(); velS = 0; accum = 0;
@@ -521,8 +498,7 @@
       // 左右を優先。上下は「かなり縦に」動かしたときだけ反応する
       if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = p.x; lastT = performance.now(); }
       else if (ay > 26 && ay > ax * 2.2) {
-        mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y;
-        if (mode === 'vol' && !ensureAudio()) chip('音量', 'iPhoneの音量ボタンで調整してな', 1500);
+        mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0;
       }
       else return;
     }
@@ -544,10 +520,16 @@
       chip('☀︎ ' + Math.round(bright / 1.5 * 100) + '%', '明るさ');
     } else if (mode === 'vol') {
       const ddy = p.y - lastY; lastY = p.y;
-      if (!actx) return;
-      vol = clamp(vol - ddy / (p.h * 0.7), 0, 1);
-      applyVol(); store.set('vol', vol);
-      chip((vol === 0 ? '🔇 ' : '🔊 ') + Math.round(vol * 100) + '%', '音量');
+      if (canVol) {
+        vol = clamp(vol - ddy / (p.h * 0.7), 0, 1);
+        v.volume = vol; store.set('vol', vol);
+        chip((vol === 0 ? '🔇 ' : '🔊 ') + Math.round(vol * 100) + '%', '音量');
+      } else {
+        volAcc += ddy;
+        if (volAcc > 40 && !v.muted) v.muted = true;
+        if (volAcc < -40 && v.muted) v.muted = false;
+        chip(v.muted ? '🔇 ミュート' : '🔊 音あり', '音量はiPhoneのボタンで調整してな');
+      }
     }
   }, {passive:false});
 
