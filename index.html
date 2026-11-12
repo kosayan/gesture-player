@@ -251,8 +251,10 @@
 
   // ================= 動画を開く =================
   let curId = null, curBlob = null, url = null, needCover = false, pendingSeek = null;
-  const tv = document.createElement('video'); // サムネ用の裏プレイヤー
-  tv.muted = true; tv.playsInline = true; tv.setAttribute('playsinline',''); tv.preload = 'auto';
+  const tv = document.createElement('video'); // サムネ用の裏プレイヤー（iPhoneはページ上に置かんとフレームを描かへん）
+  tv.muted = true; tv.playsInline = true; tv.setAttribute('playsinline',''); tv.setAttribute('muted',''); tv.preload = 'auto';
+  tv.style.cssText = 'position:fixed;left:0;top:0;width:4px;height:4px;opacity:0.01;pointer-events:none;z-index:-1;';
+  document.body.appendChild(tv);
 
   $('openBtn').onclick = () => $('file').click();
   $('file').addEventListener('change', async e => {
@@ -278,6 +280,7 @@
   }
   function play(blob, id, wantCover){
     curId = id; curBlob = blob; needCover = wantCover; pendingSeek = null;
+    startThumbs(true);
     setSrc(blob);
     $('home').style.display = 'none';
     layout();
@@ -290,6 +293,7 @@
     if (!curBlob) return;
     const t = v.currentTime, wasPlaying = !v.paused;
     pendingSeek = t;
+    startThumbs(false);
     setSrc(curBlob);
     v.load(); tv.load();
     v.playbackRate = opt.rate;
@@ -309,7 +313,6 @@
     }
     sizeCanvas();
   });
-  tv.addEventListener('loadedmetadata', () => { if (needCover) requestThumb(Math.min(3, tv.duration * 0.1), true); });
   function savePos(){ if (opt.resume && curId && v.duration) store.set('pos_' + curId, { p:v.currentTime, d:v.duration }); }
   let lastSave = 0;
   v.addEventListener('timeupdate', () => {
@@ -326,38 +329,75 @@
   $('center').onclick = () => { togglePlay(); keepUI(); };
 
   // ================= サムネイル =================
-  let thumbBusy = false, thumbWant = null, thumbCover = false, thumbGuard = null;
+  // ①開いた直後に動画全体のサムネを裏で先に作っとく（すぐ出せる用）
+  // ②スワイプ中はその位置のサムネをピンポイントで取りに行って差し替える
+  const PRE_N = 120;
+  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null, coverWant = false;
   function sizeCanvas(){
     const ar = v.videoWidth && v.videoHeight ? v.videoHeight / v.videoWidth : 9/16, c = $('cv');
     if (ar > 1) { c.height = 150; c.width = Math.round(150 / ar); } else { c.width = 176; c.height = Math.round(176 * ar); }
   }
-  function requestThumb(t, cover){
-    if (!tv.src) return;
-    thumbWant = t; if (cover) thumbCover = true;
-    if (!thumbBusy) nextThumb();
+  function startThumbs(reset){
+    gen++;
+    if (reset) { thumbs = []; preIdx = 0; }
+    coverWant = needCover; liveWant = null; running = false;
   }
-  function nextThumb(){
-    if (thumbWant === null) return;
-    thumbBusy = true; const t = thumbWant; thumbWant = null;
-    clearTimeout(thumbGuard); thumbGuard = setTimeout(() => { thumbBusy = false; nextThumb(); }, 1200);
-    try { tv.currentTime = t; } catch(e){ thumbBusy = false; }
+  function seekTv(t){
+    return new Promise(res => {
+      let done = false;
+      const fin = ok => { if (done) return; done = true; tv.removeEventListener('seeked', h); clearTimeout(to); res(ok); };
+      const h = () => requestAnimationFrame(() => fin(true));
+      const to = setTimeout(() => fin(false), 2000);
+      tv.addEventListener('seeked', h);
+      try { if (tv.fastSeek) tv.fastSeek(t); else tv.currentTime = t; } catch(e){ fin(false); }
+    });
   }
-  tv.addEventListener('seeked', () => {
-    clearTimeout(thumbGuard);
-    const c = $('cv'); try { c.getContext('2d').drawImage(tv, 0, 0, c.width, c.height); } catch(e){}
-    if (thumbCover && curId) {
-      thumbCover = false; needCover = false;
-      try {
-        const k = document.createElement('canvas'); k.width = 320; k.height = 180;
-        const ctx = k.getContext('2d'), ar = tv.videoWidth / tv.videoHeight || 16/9;
-        let w = 320, h = 320 / ar; if (h < 180) { h = 180; w = 180 * ar; }
-        ctx.drawImage(tv, (320-w)/2, (180-h)/2, w, h);
-        const cover = k.toDataURL('image/jpeg', 0.7), id = curId;
-        getRec(id).then(r => { if (r) putRec(Object.assign(r, { cover })).catch(()=>{}); });
-      } catch(e){}
+  function drawTo(c){
+    try { c.getContext('2d').drawImage(tv, 0, 0, c.width, c.height); return true; } catch(e){ return false; }
+  }
+  async function thumbLoop(){
+    if (running || !tv.src || tv.readyState < 1) return;
+    running = true; const my = gen;
+    while (my === gen) {
+      let t, kind;
+      if (liveWant !== null) { t = liveWant; liveWant = null; kind = 'live'; }
+      else if (coverWant) { t = Math.min(3, tv.duration * 0.1); kind = 'cover'; }
+      else if (preIdx < PRE_N && tv.duration) { t = (preIdx + 0.5) * tv.duration / PRE_N; kind = 'pre'; }
+      else break;
+      const ok = await seekTv(t);
+      if (my !== gen) return;
+      if (kind === 'pre') preIdx++;
+      if (kind === 'cover') coverWant = false;
+      if (!ok || !tv.videoWidth) continue;
+      if (kind === 'live') { if (previewing) drawTo($('cv')); }
+      else if (kind === 'pre') {
+        const k = document.createElement('canvas'), c = $('cv'); k.width = c.width; k.height = c.height;
+        if (drawTo(k)) thumbs[preIdx - 1] = k;
+      } else if (kind === 'cover' && curId) {
+        needCover = false;
+        try {
+          const k = document.createElement('canvas'); k.width = 320; k.height = 180;
+          const ctx = k.getContext('2d'), ar = tv.videoWidth / tv.videoHeight || 16/9;
+          let w = 320, h = 320 / ar; if (h < 180) { h = 180; w = 180 * ar; }
+          ctx.drawImage(tv, (320-w)/2, (180-h)/2, w, h);
+          const cover = k.toDataURL('image/jpeg', 0.7), id = curId;
+          getRec(id).then(r => { if (r) putRec(Object.assign(r, { cover })).catch(()=>{}); });
+        } catch(e){}
+      }
     }
-    thumbBusy = false; nextThumb();
-  });
+    if (my === gen) running = false;
+  }
+  function requestThumb(t){
+    // まず先に作っといたサムネで即表示
+    if (tv.duration) {
+      const i = clamp(Math.floor(t / tv.duration * PRE_N), 0, PRE_N - 1);
+      let k = thumbs[i];
+      for (let d = 1; !k && d < 6; d++) k = thumbs[i - d] || thumbs[i + d];
+      if (k) { const c = $('cv'); c.getContext('2d').drawImage(k, 0, 0, c.width, c.height); }
+    }
+    liveWant = t; thumbLoop();
+  }
+  tv.addEventListener('loadeddata', thumbLoop);
 
   // ================= シークバー＆プレビュー =================
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s));
