@@ -87,9 +87,20 @@
   #pvTime em { font-style:normal; color:rgba(255,255,255,.6); margin-left:6px; font-weight:500; }
   #bar.pv #preview { display:block; }
 
+  /* 縦画面：動画は上1/3あたり、シークバーやチャプターは動画のすぐ下 */
+  #stage.portrait video#v { top:var(--vTop, 64px); height:var(--vH, 56vw); bottom:auto; }
+  #stage.portrait #controls { top:calc(var(--vTop, 64px) + var(--vH, 56vw)); bottom:auto; padding-top:2px; background:none; }
+  #stage.portrait #controls.narrow #icons { order:1; margin:2px 0 0; }
+  #stage.portrait #center { top:calc(var(--vTop, 64px) + var(--vH, 56vw) / 2); }
+  #stage.portrait #chip { bottom:auto; top:calc(var(--vTop, 64px) + var(--vH, 56vw) - 62px); }
+  #stage.portrait #chapPanel { bottom:auto; top:calc(var(--vTop, 64px) + var(--vH, 56vw) + 34px); }
+  #stage.portrait.chapOn #controls { top:calc(var(--vTop, 64px) + var(--vH, 56vw) - 6px); }
+
   /* チャプター一覧 */
   #chap { position:absolute; inset:0; z-index:6; display:none; pointer-events:none; }
   #chap.open { display:block; }
+  #chapSize { position:absolute; left:10px; bottom:100%; display:flex; gap:6px; }
+  #chapSize button { width:30px; height:24px; padding:0; border:1px solid rgba(255,255,255,.25); border-radius:7px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); font-size:15px; line-height:1; }
   #chapPanel { position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:6px;
     padding:6px 10px 8px; pointer-events:auto; touch-action:none; animation:up .18s ease-out; }
   #chap { container-type:inline-size; }
@@ -107,7 +118,7 @@
   #stage.chapOn #icons { display:none; }
   #stage.chapOn #bar { pointer-events:none !important; }
   #stage.chapOn #chip { bottom:calc(var(--chapH, 130px) + 12px); }
-  .ch { position:relative; flex:0 0 auto; width:calc((100cqw - 104px) / 5.3); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
+  .ch { position:relative; flex:0 0 auto; width:calc((100cqw - 104px) / var(--chapCols, 5.3)); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
   .ch.cur { border-color:var(--accent); }
   .ch canvas { display:block; width:100%; aspect-ratio:16/9; background:#111; }
   .ch span { position:absolute; left:5px; bottom:3px; font-size:11px; font-weight:600; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.8); font-variant-numeric:tabular-nums; }
@@ -205,7 +216,7 @@
     </div>
   </div>
 
-  <div id="chap"><div id="chapPanel"><div id="chapSide"><select id="chapSel" aria-label="チャプターの間隔"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button></div><div id="chapGrid"></div></div></div>
+  <div id="chap"><div id="chapPanel"><div id="chapSize"><button id="chapPlus" aria-label="大きく">＋</button><button id="chapMinus" aria-label="小さく">−</button></div><div id="chapSide"><select id="chapSel" aria-label="チャプターの間隔"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button></div><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
@@ -238,7 +249,7 @@
     <div class="set"><span>スワイプ感度</span>
       <select id="optSens"><option value="20">ひかえめ</option><option value="12" selected>ふつう</option><option value="7">敏感</option></select></div>
     <div class="set"><span>チャプターの間隔</span>
-      <select id="optChap"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="1800">30分</option></select></div>
+      <select id="optChap"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="1800">30分</option></select></div>
 
     <h3>ダブルタップの範囲</h3>
     <div class="set col">
@@ -280,7 +291,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-14';
+  const APP_VERSION = '2026.11.13-15';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -557,6 +568,7 @@
       if (p && p.p > 3 && p.p < v.duration - 3) { v.currentTime = p.p; chip('続きから再生', fmt(p.p) + ' / ' + fmt(v.duration), 1500); }
     }
     sizeCanvas();
+    updateGeom();
     updateBar();
   });
   function savePos(){ if (opt.resume && curId && v.duration && v.currentTime > 0) store.set('pos_' + curId, { p:v.currentTime, d:v.duration }); }
@@ -857,7 +869,25 @@
 
   // ================= チャプター =================
   let chapOpen = false, chapBuiltFor = null, chapObs = null, chapItems = [];
-  const CHAP_STEPS = [10, 30, 60, 120, 180, 300, 600, 1800];
+  const CHAP_STEPS = [2, 5, 10, 30, 60, 120, 180, 300, 600, 1800];
+  // サムネの大きさ（横に何枚並ぶか）。＋で大きく（枚数少なく）、−で小さく（枚数多く）
+  const CHAP_COLS = [2.3, 3.3, 4.3, 5.3, 6.3, 7.3, 8.3, 10.3];
+  // 縦画面と横画面で大きさを別々に覚える（縦は幅が狭いので初期は大きめ）
+  const colsKey = () => stage.classList.contains('portrait') ? 'chapColsIdxP' : 'chapColsIdx';
+  let chapColsIdx = 3;
+  const applyChapCols = () => $('chapGrid').style.setProperty('--chapCols', CHAP_COLS[chapColsIdx]);
+  const loadChapCols = () => { chapColsIdx = clamp(store.get(colsKey(), colsKey() === 'chapColsIdxP' ? 1 : 3), 0, CHAP_COLS.length - 1); applyChapCols(); };
+  // 並べ直しても、いま見えてる場所（真ん中あたりの時間）をそのまま保つ
+  function keepChapView(fn){
+    const gr = $('chapGrid'), mid = gr.scrollLeft + gr.clientWidth / 2;
+    const ref = chapItems.find(it => it.el.offsetLeft + it.el.offsetWidth > mid) || chapItems[chapItems.length - 1];
+    const refT = ref ? ref.start : 0, refOff = ref ? (ref.el.offsetLeft + ref.el.offsetWidth / 2) - gr.scrollLeft : gr.clientWidth / 2;
+    fn();
+    let best = null, bd = Infinity;
+    for (const it of chapItems) { const d = Math.abs(it.start - refT); if (d < bd) { bd = d; best = it; } }
+    if (best) gr.scrollLeft = best.el.offsetLeft + best.el.offsetWidth / 2 - refOff;
+    stage.style.setProperty('--chapH', panel.offsetHeight + 'px');
+  }
   const stepLabel = st => st < 60 ? st + '秒' : st / 60 + '分';
   // 起点（chapAnchor）を基準に、前後へ間隔ごとにサムネを並べる。初期値は0秒
   let chapAnchor = 0;
@@ -916,6 +946,7 @@
     chapOpen = true; hideUI();
     stage.classList.add('chapOn');
     $('chap').classList.add('open');
+    loadChapCols();
     buildChap(); markChapCur(); centerChapCur();
     stage.style.setProperty('--chapH', panel.offsetHeight + 'px');
     thumbLoop();
@@ -961,9 +992,14 @@
       const sync = cs.target.closest && cs.target.closest('#chapSync');
       if (sync) {
         chapAnchor = v.currentTime;
-        buildChap(); markChapCur(); centerChapCur(); thumbLoop();
+        keepChapView(() => { buildChap(); markChapCur(); });
+        thumbLoop();
         sync.classList.remove('spin'); void sync.offsetWidth; sync.classList.add('spin');
         chip('起点 ' + fmt(chapAnchor), 'チャプターを今の位置から並べ直したで', 1200);
+      } else if (cs.target.closest && (cs.target.closest('#chapPlus') || cs.target.closest('#chapMinus'))) {
+        const plus = !!cs.target.closest('#chapPlus');
+        const ni = clamp(chapColsIdx + (plus ? -1 : 1), 0, CHAP_COLS.length - 1);
+        if (ni !== chapColsIdx) { chapColsIdx = ni; store.set(colsKey(), ni); keepChapView(applyChapCols); thumbLoop(); }
       } else if (item) jumpTo(chapItems[item.dataset.i].start);
     } else if (cs.dir === 'v' && dy > 40) closeChap();
     else if (cs.dir === 'h' && cs.inGrid) {
@@ -998,6 +1034,17 @@
     else if (rot === 90) { s.width = ah+'px'; s.height = aw+'px'; s.left = (L+aw)+'px'; s.top = T+'px'; s.transform = 'rotate(90deg)'; }
     else { s.width = ah+'px'; s.height = aw+'px'; s.left = L+'px'; s.top = (T+ah)+'px'; s.transform = 'rotate(-90deg)'; }
     $('controls').classList.toggle('narrow', (rot === 0 ? aw : ah) < 640);
+    updateGeom();
+  }
+  function updateGeom(){
+    const sw = stage.offsetWidth, sh = stage.offsetHeight, portrait = sh > sw * 1.15;
+    stage.classList.toggle('portrait', portrait);
+    if (!portrait) return;
+    const ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9;
+    const vh = Math.min(sw / ar, sh * 0.6);
+    const top = Math.max(64, sh / 3 - vh / 2);
+    stage.style.setProperty('--vTop', top + 'px');
+    stage.style.setProperty('--vH', vh + 'px');
   }
   $('rotBtn').onclick = () => {
     rot = rot === 0 ? 90 : rot === 90 ? 270 : 0; store.set('rot', rot); layout();
