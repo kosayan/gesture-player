@@ -63,9 +63,13 @@
   #nextBtn { right:68px; }
   #controls { position:absolute; left:0; right:0; bottom:0; z-index:4; pointer-events:none;
     padding:24px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
-  #controls button, #controls #bar { pointer-events:auto; }
+  #controls button, #controls select, #controls #bar { pointer-events:auto; }
   .hidden { opacity:0 !important; pointer-events:none !important; }
-  .hidden button, .hidden #bar { pointer-events:none !important; }
+  .hidden button, .hidden select, .hidden #bar { pointer-events:none !important; }
+  select.q { -webkit-appearance:none; appearance:none; background:transparent; color:rgba(255,255,255,.8); text-align:center; text-align-last:center; }
+  /* UIを出してないときのスワイプ：シークバーとサムネだけ */
+  #stage.scrubOnly #icons { display:none; }
+  #stage.lite #preview canvas { display:none; }
   .row { display:flex; align-items:center; gap:4px; }
   .sp { flex:1; }
   .time { font-variant-numeric:tabular-nums; font-size:11px; color:rgba(255,255,255,.75); min-width:40px; text-align:center; }
@@ -208,7 +212,7 @@
       <div id="icons">
       <button class="ib q" id="qRate">1x</button>
       <button class="ib q" id="qHold">長押し 2x</button>
-      <button class="ib q" id="qSkip">10秒</button>
+      <select class="ib q" id="qSkip" aria-label="スキップ秒数"></select>
       <button class="ib" id="pipBtn" aria-label="ピクチャーインピクチャー" style="display:none"><svg viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor"/></svg></button>
       <button class="ib" id="chapBtn" aria-label="チャプター"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="13" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/></svg></button>
       <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
@@ -246,13 +250,15 @@
     <div class="set"><span>長押し中の速度</span>
       <select id="optHold"><option>1.5</option><option selected>2</option><option>3</option><option>4</option></select></div>
     <div class="set"><span>ダブルタップのスキップ秒数</span>
-      <select id="optSkip"><option>5</option><option selected>10</option><option>15</option><option>30</option><option>60</option></select></div>
+      <select id="optSkip"></select></div>
     <div class="set"><span>スワイプ感度</span>
       <select id="optSens"><option value="20">ひかえめ</option><option value="12" selected>ふつう</option><option value="7">敏感</option></select></div>
     <div class="set"><span>チャプターの間隔</span>
       <select id="optChap"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="1800">30分</option></select></div>
 
     <div class="set"><span>くっきりモード（コントラストと色味を少し上げる）</span><input type="checkbox" id="optSharp"></div>
+    <div class="set"><span>軽量モード（サムネを作らない）</span><input type="checkbox" id="optLite"></div>
+    <p class="help">スキップやチャプターで本編がもたつくときに。裏でサムネを作るのをやめて、本編の読み込みに専念する。スワイプ中のサムネやチャプターの絵は出えへんようになる</p>
     <h3>ダブルタップの範囲</h3>
     <div class="set col">
       <div class="seg" id="zoneSeg"><button data-m="ud">上下で切り替え</button><button data-m="lr">左右で切り替え</button></div>
@@ -293,7 +299,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-17';
+  const APP_VERSION = '2026.11.13-18';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -316,12 +322,15 @@
   const opt = {
     rate: store.get('rate', 1), hold: store.get('hold', 2), skip: store.get('skip', 10), sens: store.get('sens', 12),
     chap: store.get('chap', 300), resume: store.get('resume', true), keep: store.get('keep', 5), maxGB: store.get('maxGB', 3),
-    fineVol: store.get('fineVol', false), sharp: store.get('sharp', false)
+    fineVol: store.get('fineVol', false), sharp: store.get('sharp', false), lite: store.get('lite', false)
   };
+  // スキップ秒数の選択肢（1〜180秒）
+  const SKIP_OPTS = Array.from({ length:180 }, (_, i) => `<option value="${i + 1}">${i + 1}秒</option>`).join('');
+  $('optSkip').innerHTML = SKIP_OPTS; $('qSkip').innerHTML = SKIP_OPTS;
   const SELECTS = [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optChap','chap'],['optKeep','keep'],['optMax','maxGB']];
   function syncSettingsUI(){
     for (const [id, k] of SELECTS) $(id).value = opt[k];
-    $('optResume').checked = opt.resume; $('optFineVol').checked = opt.fineVol; $('optSharp').checked = opt.sharp;
+    $('optResume').checked = opt.resume; $('optFineVol').checked = opt.fineVol; $('optSharp').checked = opt.sharp; $('optLite').checked = opt.lite;
   }
   syncSettingsUI();
   function setOpt(key, val){
@@ -334,10 +343,23 @@
   for (const [id, k] of SELECTS) $(id).addEventListener('change', e => setOpt(k, Number(e.target.value)));
   $('optResume').addEventListener('change', e => setOpt('resume', e.target.checked));
   $('optSharp').addEventListener('change', e => { setOpt('sharp', e.target.checked); applyBright(); });
+  $('optLite').addEventListener('change', e => {
+    setOpt('lite', e.target.checked);
+    stage.classList.toggle('lite', opt.lite);
+    if (opt.lite) { startThumbs(true); try { tv.pause(); tv.removeAttribute('src'); tv.load(); } catch(err){} }
+    else if (url) { startThumbs(true); tv.src = url; tv.load(); primeTv(); }
+  });
   $('optFineVol').addEventListener('change', e => {
     setOpt('fineVol', e.target.checked);
     if (e.target.checked && curBlob) ensureAudio();
+    // 一回つないだ音の経路は外されへんので、オフにしたらページを読み込み直す（再生位置は保存してある）
+    if (!e.target.checked && actx) {
+      savePos();
+      if (!curBlob) location.reload();
+      else chip('音ズレ対策を反映するには', '✕で閉じると自動で読み込み直すで', 3000), (reloadOnHome = true);
+    }
   });
+  let reloadOnHome = false;
 
   // ================= 保存（IndexedDB） =================
   // 一覧の情報(meta)と動画本体(blobs)を別々の箱に入れる（でかい動画の書き込み中に他の処理が待たされへんように）
@@ -491,10 +513,11 @@
   function setSrc(blob){
     if (url) URL.revokeObjectURL(url);
     url = URL.createObjectURL(blob);
-    v.src = url; tv.src = url;
+    v.src = url;
+    if (opt.lite) tv.removeAttribute('src'); else tv.src = url;
   }
   function tryPlay(){ v.play().catch(() => showUI()); }
-  function primeTv(){ tv.play().then(() => tv.pause()).catch(()=>{}); }
+  function primeTv(){ if (opt.lite || !tv.getAttribute('src')) return; tv.play().then(() => tv.pause()).catch(()=>{}); }
   // 前後の動画へ（最近の動画の並び順で）
   async function stepVideo(dir){
     // まとめて開いた動画の中におるときは、その並び（名前順）で移動。保存されてなくても行ける
@@ -583,6 +606,7 @@
     resetZoom(); v.style.opacity = '';
     hideUI(); $('chip').classList.remove('show');
     $('home').style.display = 'block';
+    if (reloadOnHome) { location.reload(); return; }
     applyBright();
     renderRecent();
   }
@@ -667,7 +691,7 @@
       resumeAudio();
       if (v.error || v.readyState === 0) { reloadVideo(); return; }
       startThumbs(false);
-      try { tv.src = url; tv.load(); primeTv(); } catch(e){}
+      if (!opt.lite) try { tv.src = url; tv.load(); primeTv(); } catch(e){}
     }
   });
   window.addEventListener('pagehide', savePos);
@@ -712,7 +736,7 @@
     return isBlank(k) ? null : k;
   }
   async function thumbLoop(){
-    if (running || !tv.src || tv.readyState < 1) return;
+    if (running || opt.lite || !tv.getAttribute('src') || tv.readyState < 1) return;
     running = true; const my = gen;
     while (my === gen) {
       let t, kind, item;
@@ -821,12 +845,13 @@
   function refreshQuick(){
     $('qRate').textContent = rateLabel(opt.rate);
     $('qHold').textContent = '長押し ' + rateLabel(opt.hold);
-    $('qSkip').textContent = opt.skip + '秒';
+    $('qSkip').value = opt.skip;
     syncSettingsUI(); layoutZones();
   }
   $('qRate').onclick = () => { setOpt('rate', cycle([0.5,0.75,1,1.25,1.5,1.75,2,2.5,3], opt.rate)); chip(rateLabel(opt.rate), '再生速度', 900); keepUI(); };
   $('qHold').onclick = () => { setOpt('hold', cycle([1.5,2,3,4], opt.hold)); chip('▶▶ ' + rateLabel(opt.hold), '長押し中の速度', 900); keepUI(); };
-  $('qSkip').onclick = () => { setOpt('skip', cycle([5,10,15,30,60], opt.skip)); chip(opt.skip + '秒', 'ダブルタップのスキップ', 900); keepUI(); };
+  $('qSkip').addEventListener('change', e => { setOpt('skip', Number(e.target.value)); chip(opt.skip + '秒', 'ダブルタップのスキップ', 900); keepUI(); });
+  $('qSkip').addEventListener('focus', () => clearTimeout(uiTimer)); // 選んでる最中にメニューが消えへんように
 
   // ================= 設定シート =================
   const openSheet = () => {
@@ -1129,6 +1154,18 @@
     } catch(e){ audioFailed = true; actx = null; return false; }
   }
   function resumeAudio(){ if (actx && actx.state !== 'running') actx.resume().catch(()=>{}); }
+  let unmuteTimer = null;
+  v.addEventListener('seeking', () => {
+    if (!gainNode) return;
+    clearTimeout(unmuteTimer);
+    gainNode.gain.cancelScheduledValues(actx.currentTime);
+    gainNode.gain.setValueAtTime(0, actx.currentTime);
+  });
+  v.addEventListener('seeked', () => {
+    if (!gainNode) return;
+    clearTimeout(unmuteTimer);
+    unmuteTimer = setTimeout(() => { if (gainNode && !v.seeking) gainNode.gain.setTargetAtTime(gainOf(vol), actx.currentTime, 0.03); }, 180);
+  });
   if (canVol) try { v.volume = vol; } catch(e){}
 
   // ================= ジェスチャー =================
@@ -1224,8 +1261,7 @@
       accum += ddx / opt.sens * mult;
       lastX = p.x; lastT = now;
       const jump = Math.round(accum);
-      if (chapOpen) $('controls').classList.remove('hidden'); // チャプター表示中はシークバーとサムネだけ出す
-      else if (!uiShown) showUI();
+      if (!uiShown) { $('controls').classList.remove('hidden'); stage.classList.add('scrubOnly'); } // シークバーとサムネだけ
       showPreview(clamp(v.currentTime + jump, 0, v.duration), jump);
     } else if (mode === 'bright') {
       const ddy = p.y - lastY; lastY = p.y;
@@ -1268,8 +1304,9 @@
     } else if (mode === 'scrub') {
       const jump = Math.round(accum);
       if (v.duration && jump !== 0) v.currentTime = clamp(v.currentTime + jump, 0, v.duration);
-      setTimeout(() => { hidePreview(); if (chapOpen && !uiShown) $('controls').classList.add('hidden'); }, 300);
-      keepUI();
+      hidePreview();
+      if (!uiShown) { $('controls').classList.add('hidden'); stage.classList.remove('scrubOnly'); }
+      else keepUI();
     } else if (mode === 'bright' || mode === 'vol') {
       hideChip(700);
     } else if (mode === null && Date.now() - st < HOLD_MS) {
@@ -1314,6 +1351,7 @@
     }, MULTI_MS);
   }
 
+  stage.classList.toggle('lite', opt.lite);
   refreshQuick();
   renderRecent();
 })();
