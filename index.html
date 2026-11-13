@@ -48,6 +48,10 @@
     display:flex; align-items:center; justify-content:center; transition:opacity .25s; }
   #center svg { width:28px; height:28px; fill:currentColor; }
 
+  #closeBtn { position:absolute; left:10px; top:10px; width:52px; height:52px; z-index:4; border:0; border-radius:50%;
+    background:rgba(0,0,0,.22); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; transition:opacity .25s; }
+  #closeBtn svg { width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+
   /* 下のバー */
   #controls { position:absolute; left:0; right:0; bottom:0; z-index:4;
     padding:26px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.55)); transition:opacity .3s; }
@@ -113,6 +117,7 @@
   <div id="chip"></div>
 
   <button id="center" class="hidden"></button>
+  <button id="closeBtn" class="hidden" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 
   <div id="controls" class="hidden">
     <div class="row">
@@ -126,7 +131,6 @@
       <button class="ib" id="reloadBtn" aria-label="再読み込み"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
       <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
       <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
-      <button class="ib" id="homeBtn" aria-label="ホーム"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h14V10"/></svg></button>
     </div>
   </div>
 </div>
@@ -157,7 +161,6 @@
       <select id="optSkip"><option>5</option><option selected>10</option><option>15</option><option>30</option></select></div>
     <div class="set"><span>スワイプ感度</span>
       <select id="optSens"><option value="20">ひかえめ</option><option value="12" selected>ふつう</option><option value="7">敏感</option></select></div>
-    <div class="set"><span>スワイプ中も本編を動かす</span><input type="checkbox" id="optLive"></div>
     <div class="set"><span>最近の動画を保存する数</span>
       <select id="optKeep"><option value="0">保存しない</option><option value="3">3本</option><option value="5" selected>5本</option><option value="10">10本</option><option value="20">20本</option></select></div>
     <div class="set"><span>再生位置を覚えとく</span><input type="checkbox" id="optResume" checked></div>
@@ -178,7 +181,7 @@
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-5';
+  const APP_VERSION = '2026.11.13-6';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -202,7 +205,7 @@
     live: store.get('live', false), resume: store.get('resume', true), keep: store.get('keep', 5)
   };
   for (const [id, k] of [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optKeep','keep']]) $(id).value = opt[k];
-  $('optLive').checked = opt.live; $('optResume').checked = opt.resume;
+  $('optResume').checked = opt.resume;
   const bindOpt = (id, key, num) => $(id).addEventListener('change', e => {
     opt[key] = e.target.type === 'checkbox' ? e.target.checked : (num ? Number(e.target.value) : e.target.value);
     store.set(key, opt[key]);
@@ -210,7 +213,7 @@
     if (key === 'keep') trimRecent().then(renderRecent);
   });
   bindOpt('optRate','rate',true); bindOpt('optHold','hold',true); bindOpt('optSkip','skip',true); bindOpt('optSens','sens',true);
-  bindOpt('optLive','live'); bindOpt('optResume','resume'); bindOpt('optKeep','keep',true);
+  bindOpt('optResume','resume'); bindOpt('optKeep','keep',true);
 
   // ================= 保存（IndexedDB） =================
   let dbp = null;
@@ -284,7 +287,9 @@
     play(f, id, !(existing && existing.cover));
     if (opt.keep > 0) {
       try {
-        await putRec({ id, name:f.name, size:f.size, blob:f, cover: existing ? existing.cover : null, at:Date.now() });
+        const cover = (existing && existing.cover) || (coverMem && coverMem.id === id ? coverMem.data : null);
+        await putRec({ id, name:f.name, size:f.size, blob:f, cover, at:Date.now() });
+        if (!cover && coverMem && coverMem.id === id) { const r = await getRec(id); if (r) await putRec(Object.assign(r, { cover:coverMem.data })); }
         await trimRecent();
       } catch(err) { chip('保存できへんかった', '容量が足りへんみたい', 2500); }
     }
@@ -323,7 +328,7 @@
   }
   $('reloadBtn').onclick = () => { reloadVideo(); keepUI(); };
   function goHome(){ v.pause(); savePos(); $('home').style.display = 'block'; renderRecent(); }
-  $('homeBtn').onclick = goHome;
+  $('closeBtn').onclick = goHome;
 
   v.addEventListener('loadedmetadata', () => {
     if (pendingSeek !== null) { v.currentTime = pendingSeek; pendingSeek = null; }
@@ -334,8 +339,24 @@
     sizeCanvas();
   });
   function savePos(){ if (opt.resume && curId && v.duration) store.set('pos_' + curId, { p:v.currentTime, d:v.duration }); }
+  // 最近の動画のサムネ：再生中の本編から1枚撮る
+  let coverMem = null; // {id, data} 保存が終わる前に撮れた場合用
+  function captureCover(){
+    if (!needCover || !curId || v.readyState < 2 || v.seeking || !v.videoWidth || v.currentTime < 1) return;
+    needCover = false;
+    try {
+      const k = document.createElement('canvas'); k.width = 320; k.height = 180;
+      const ctx = k.getContext('2d'), ar = v.videoWidth / v.videoHeight;
+      let w = 320, h = 320 / ar; if (h < 180) { h = 180; w = 180 * ar; }
+      ctx.drawImage(v, (320-w)/2, (180-h)/2, w, h);
+      const data = k.toDataURL('image/jpeg', 0.7), id = curId;
+      coverMem = { id, data };
+      getRec(id).then(r => { if (r) putRec(Object.assign(r, { cover:data })).catch(()=>{}); });
+    } catch(e){}
+  }
   let lastSave = 0;
   v.addEventListener('timeupdate', () => {
+    captureCover();
     if (!previewing) updateBar();
     if (Date.now() - lastSave > 2000) { savePos(); lastSave = Date.now(); }
   });
@@ -344,7 +365,25 @@
   $('center').innerHTML = ICON_PLAY;
   v.addEventListener('play', () => $('center').innerHTML = ICON_PAUSE);
   v.addEventListener('pause', () => { $('center').innerHTML = ICON_PLAY; savePos(); showUI(); });
-  document.addEventListener('visibilitychange', savePos);
+  // 別アプリに切り替えたら裏の処理を止めてメモリを空ける。戻ってきたら復帰
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      savePos();
+      gen++; running = false; liveWant = null;
+      try { tv.pause(); tv.removeAttribute('src'); tv.load(); } catch(e){}
+    } else if (curBlob && $('home').style.display === 'none') {
+      if (v.error || v.readyState === 0) { reloadVideo(); return; }
+      startThumbs(false);
+      try { tv.src = url; tv.load(); tv.play().then(() => tv.pause()).catch(()=>{}); } catch(e){}
+    }
+  });
+  let errRetry = 0;
+  v.addEventListener('playing', () => errRetry = 0);
+  v.addEventListener('error', () => {
+    if (!curBlob || document.hidden) return;
+    if (errRetry++ < 2) { chip('読み込みエラー', '自動で読み込み直すで', 1500); setTimeout(reloadVideo, 500); }
+    else chip('再生できへん', 'ホームに戻ってもう一回開いてみて', 3000);
+  });
   const togglePlay = () => v.paused ? v.play().catch(()=>{}) : v.pause();
   $('center').onclick = () => { togglePlay(); keepUI(); };
 
@@ -352,7 +391,7 @@
   // ①開いた直後に動画全体のサムネを裏で先に作っとく（すぐ出せる用）
   // ②スワイプ中はその位置のサムネをピンポイントで取りに行って差し替える
   const PRE_N = 120;
-  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null, coverWant = false;
+  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null;
   function sizeCanvas(){
     const ar = v.videoWidth && v.videoHeight ? v.videoHeight / v.videoWidth : 9/16, c = $('cv');
     if (ar > 1) { c.height = 150; c.width = Math.round(150 / ar); } else { c.width = 176; c.height = Math.round(176 * ar); }
@@ -360,7 +399,7 @@
   function startThumbs(reset){
     gen++;
     if (reset) { thumbs = []; preIdx = 0; }
-    coverWant = needCover; liveWant = null; running = false;
+    liveWant = null; running = false;
   }
   function seekTv(t){
     return new Promise(res => {
@@ -381,28 +420,16 @@
     while (my === gen) {
       let t, kind;
       if (liveWant !== null) { t = liveWant; liveWant = null; kind = 'live'; }
-      else if (coverWant) { t = Math.min(3, tv.duration * 0.1); kind = 'cover'; }
       else if (preIdx < PRE_N && tv.duration) { t = (preIdx + 0.5) * tv.duration / PRE_N; kind = 'pre'; }
       else break;
       const ok = await seekTv(t);
       if (my !== gen) return;
       if (kind === 'pre') preIdx++;
-      if (kind === 'cover') coverWant = false;
       if (!ok || !tv.videoWidth) continue;
       if (kind === 'live') { if (previewing) drawTo($('cv')); }
       else if (kind === 'pre') {
         const k = document.createElement('canvas'), c = $('cv'); k.width = c.width; k.height = c.height;
         if (drawTo(k)) thumbs[preIdx - 1] = k;
-      } else if (kind === 'cover' && curId) {
-        needCover = false;
-        try {
-          const k = document.createElement('canvas'); k.width = 320; k.height = 180;
-          const ctx = k.getContext('2d'), ar = tv.videoWidth / tv.videoHeight || 16/9;
-          let w = 320, h = 320 / ar; if (h < 180) { h = 180; w = 180 * ar; }
-          ctx.drawImage(tv, (320-w)/2, (180-h)/2, w, h);
-          const cover = k.toDataURL('image/jpeg', 0.7), id = curId;
-          getRec(id).then(r => { if (r) putRec(Object.assign(r, { cover })).catch(()=>{}); });
-        } catch(e){}
       }
     }
     if (my === gen) running = false;
@@ -507,8 +534,9 @@
 
   // ================= UI表示 =================
   let uiTimer = null, uiShown = false;
-  function showUI(){ uiShown = true; $('controls').classList.remove('hidden'); $('center').classList.remove('hidden'); keepUI(); }
-  function hideUI(){ uiShown = false; $('controls').classList.add('hidden'); $('center').classList.add('hidden'); }
+  const UI_IDS = ['controls','center','closeBtn'];
+  function showUI(){ uiShown = true; UI_IDS.forEach(id => $(id).classList.remove('hidden')); keepUI(); }
+  function hideUI(){ uiShown = false; UI_IDS.forEach(id => $(id).classList.add('hidden')); }
   function keepUI(){ clearTimeout(uiTimer); uiTimer = setTimeout(() => { if (!v.paused && !previewing) hideUI(); }, 2500); }
   let chipTimer = null;
   function chip(main, sub, ms){
@@ -533,7 +561,7 @@
   // ================= ジェスチャー =================
   const HOLD_MS = 350, DOUBLE_MS = 280;
   let s0 = null, st = 0, holdTimer = null, mode = null, startTime = 0, targetTime = 0;
-  let lastX = 0, lastY = 0, lastT = 0, velS = 0, accum = 0;
+  let lastX = 0, lastY = 0, lastT = 0, velS = 0, accum = 0, stPerf = 0;
   let lastTap = 0, tapTimer = null, multiSkip = 0, multiTimer = null, multiZone = null;
 
   g.addEventListener('touchstart', e => {
@@ -541,7 +569,7 @@
     e.preventDefault();
     const t = e.touches[0];
     s0 = toLocal(t.clientX, t.clientY); st = Date.now(); mode = null;
-    lastX = s0.x; lastY = s0.y; lastT = performance.now(); velS = 0; accum = 0;
+    stPerf = performance.now(); lastX = s0.x; lastY = s0.y; lastT = stPerf; velS = 0; accum = 0;
     startTime = v.currentTime;
     holdTimer = setTimeout(() => {
       if (mode === null) {
@@ -561,7 +589,8 @@
     if (mode === null) {
       if (ax > 10 || ay > 10) clearTimeout(holdTimer);
       // 左右を優先。上下は「かなり縦に」動かしたときだけ反応する
-      if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = p.x; lastT = performance.now(); }
+      // 判定までに動いた分も捨てずに計算に入れる（素早いスワイプ対策）
+      if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }
       else if (ay > 26 && ay > ax * 2.2) {
         mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0;
       }
@@ -570,14 +599,15 @@
     const now = performance.now();
     if (mode === 'scrub' && v.duration) {
       const ddx = p.x - lastX, dt = Math.max(8, now - lastT);
-      velS = velS * 0.6 + (Math.abs(ddx) / dt) * 0.4;              // 指の速さ(px/ms)
-      const mult = Math.min(60, 1 + Math.pow(velS / 0.35, 2) * 5); // ゆっくり＝1秒刻み、速い＝大きく
+      velS = velS * 0.3 + (Math.abs(ddx) / dt) * 0.7;               // 指の速さ(px/ms)
+      const mult = Math.min(80, 1 + Math.pow(velS / 0.4, 2) * 4);   // ゆっくり＝1秒刻み、速い＝大きく
       accum += ddx / opt.sens * mult;
       lastX = p.x; lastT = now;
-      targetTime = clamp(startTime + Math.round(accum), 0, v.duration);
+      // 指を離すまでは飛ばへん。動画は裏で再生し続けて、飛び先は「今の位置＋スワイプ量」
+      const jump = Math.round(accum);
+      targetTime = clamp(v.currentTime + jump, 0, v.duration);
       if (!uiShown) showUI();
-      showPreview(targetTime, targetTime - startTime);
-      if (opt.live) v.currentTime = targetTime;
+      showPreview(targetTime, jump);
     } else if (mode === 'bright') {
       const ddy = p.y - lastY; lastY = p.y;
       bright = clamp(bright - ddy / (p.h * 0.7) * 1.35, 0.15, 1.5);
@@ -605,7 +635,8 @@
     if (mode === 'hold') {
       v.playbackRate = opt.rate; hideChip();
     } else if (mode === 'scrub') {
-      if (v.duration) v.currentTime = targetTime;
+      const jump = Math.round(accum);
+      if (v.duration && jump !== 0) v.currentTime = clamp(v.currentTime + jump, 0, v.duration);
       setTimeout(hidePreview, 300); keepUI();
     } else if (mode === 'bright' || mode === 'vol') {
       hideChip(700);
