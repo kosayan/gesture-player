@@ -93,19 +93,20 @@
   #stage.portrait #controls.narrow #icons { order:1; margin:2px 0 0; }
   #stage.portrait #center { top:calc(var(--vTop, 64px) + var(--vH, 56vw) / 2); }
   #stage.portrait #chip { bottom:auto; top:calc(var(--vTop, 64px) + var(--vH, 56vw) - 62px); }
-  #stage.portrait #chapPanel { bottom:auto; top:calc(var(--vTop, 64px) + var(--vH, 56vw) + 34px); }
+  #stage.portrait #chapPanel { bottom:auto; top:calc(var(--vTop, 64px) + var(--vH, 56vw) + 38px); }
   #stage.portrait.chapOn #controls { top:calc(var(--vTop, 64px) + var(--vH, 56vw) - 6px); }
 
   /* チャプター一覧 */
   #chap { position:absolute; inset:0; z-index:6; display:none; pointer-events:none; }
   #chap.open { display:block; }
-  #chapSize { position:absolute; left:10px; bottom:100%; display:flex; gap:6px; }
-  #chapSize button { width:30px; height:24px; padding:0; border:1px solid rgba(255,255,255,.25); border-radius:7px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); font-size:15px; line-height:1; }
+  /* チャプター欄の左上の外側に：更新・−・＋・間隔 */
+  #chapTools { position:absolute; left:10px; bottom:100%; display:flex; gap:6px; align-items:center; }
+  #chapTools button, #chapTools select { height:26px; padding:0; border:1px solid rgba(255,255,255,.25); border-radius:7px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); font-size:15px; line-height:1; }
+  #chapTools button { width:32px; display:flex; align-items:center; justify-content:center; }
+  #chapTools select { width:auto; padding:0 10px; font-size:13px; }
   #chapPanel { position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:6px;
     padding:6px 10px 8px; pointer-events:auto; touch-action:none; animation:up .18s ease-out; }
   #chap { container-type:inline-size; }
-  #chapSide { flex:0 0 auto; display:flex; flex-direction:column; gap:6px; align-items:center; }
-  #chapSync { width:58px; height:30px; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; padding:0; }
   #chapSync svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   #chapSync.spin svg { animation:spin .4s ease-out; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -118,7 +119,7 @@
   #stage.chapOn #icons { display:none; }
   #stage.chapOn #bar { pointer-events:none !important; }
   #stage.chapOn #chip { bottom:calc(var(--chapH, 130px) + 12px); }
-  .ch { position:relative; flex:0 0 auto; width:calc((100cqw - 104px) / var(--chapCols, 5.3)); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
+  .ch { position:relative; flex:0 0 auto; width:calc((100cqw - 26px) / var(--chapCols, 5.3)); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
   .ch.cur { border-color:var(--accent); }
   .ch canvas { display:block; width:100%; aspect-ratio:16/9; background:#111; }
   .ch span { position:absolute; left:5px; bottom:3px; font-size:11px; font-weight:600; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.8); font-variant-numeric:tabular-nums; }
@@ -216,7 +217,7 @@
     </div>
   </div>
 
-  <div id="chap"><div id="chapPanel"><div id="chapSize"><button id="chapPlus" aria-label="大きく">＋</button><button id="chapMinus" aria-label="小さく">−</button></div><div id="chapSide"><select id="chapSel" aria-label="チャプターの間隔"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button></div><div id="chapGrid"></div></div></div>
+  <div id="chap"><div id="chapPanel"><div id="chapTools"><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button><button id="chapMinus" aria-label="小さく">−</button><button id="chapPlus" aria-label="大きく">＋</button><select id="chapSel" aria-label="チャプターの間隔"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select></div><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
@@ -251,6 +252,7 @@
     <div class="set"><span>チャプターの間隔</span>
       <select id="optChap"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="1800">30分</option></select></div>
 
+    <div class="set"><span>くっきりモード（コントラストと色味を少し上げる）</span><input type="checkbox" id="optSharp"></div>
     <h3>ダブルタップの範囲</h3>
     <div class="set col">
       <div class="seg" id="zoneSeg"><button data-m="ud">上下で切り替え</button><button data-m="lr">左右で切り替え</button></div>
@@ -291,7 +293,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-15';
+  const APP_VERSION = '2026.11.13-16';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -314,12 +316,12 @@
   const opt = {
     rate: store.get('rate', 1), hold: store.get('hold', 2), skip: store.get('skip', 10), sens: store.get('sens', 12),
     chap: store.get('chap', 300), resume: store.get('resume', true), keep: store.get('keep', 5), maxGB: store.get('maxGB', 3),
-    fineVol: store.get('fineVol', false)
+    fineVol: store.get('fineVol', false), sharp: store.get('sharp', false)
   };
   const SELECTS = [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optChap','chap'],['optKeep','keep'],['optMax','maxGB']];
   function syncSettingsUI(){
     for (const [id, k] of SELECTS) $(id).value = opt[k];
-    $('optResume').checked = opt.resume; $('optFineVol').checked = opt.fineVol;
+    $('optResume').checked = opt.resume; $('optFineVol').checked = opt.fineVol; $('optSharp').checked = opt.sharp;
   }
   syncSettingsUI();
   function setOpt(key, val){
@@ -331,6 +333,7 @@
   }
   for (const [id, k] of SELECTS) $(id).addEventListener('change', e => setOpt(k, Number(e.target.value)));
   $('optResume').addEventListener('change', e => setOpt('resume', e.target.checked));
+  $('optSharp').addEventListener('change', e => { setOpt('sharp', e.target.checked); applyBright(); });
   $('optFineVol').addEventListener('change', e => {
     setOpt('fineVol', e.target.checked);
     if (e.target.checked && curBlob) ensureAudio();
@@ -493,6 +496,7 @@
   }
   function play(blob, id){
     if (curId && curId !== id) savePos();
+    resetZoom();
     curId = id; curBlob = blob; needCover = true; coverTries = 0; coverNext = 1; pendingSeek = null; errRetry = 0;
     startThumbs(true);
     chapBuiltFor = null; chapAnchor = 0; closeChap();
@@ -553,7 +557,7 @@
     try { v.removeAttribute('src'); v.load(); } catch(e){}
     if (url) { URL.revokeObjectURL(url); url = null; }
     curBlob = null; curId = null; previewing = false;
-    v.style.transform = ''; v.style.opacity = '';
+    resetZoom(); v.style.opacity = '';
     hideUI(); $('chip').classList.remove('show');
     $('home').style.display = 'block';
     applyBright();
@@ -1079,7 +1083,10 @@
   function applyBright(){
     const inPlayer = $('home').style.display === 'none';  // ホームはiPhoneの明るさのまま
     $('dimAll').style.opacity = inPlayer && bright < 1 ? (1 - bright).toFixed(2) : 0;
-    v.style.filter = bright > 1 ? `brightness(${bright.toFixed(2)})` : '';
+    const f = [];
+    if (bright > 1) f.push(`brightness(${bright.toFixed(2)})`);
+    if (opt.sharp) f.push('contrast(1.08) saturate(1.12)');  // くっきりモード（疑似的に引き締める）
+    v.style.filter = f.join(' ');
   }
   applyBright();
   // iPhoneはvolumeを書き換えても音が変わらへん（数字だけ変わる）。細かく調整したい人向けにWeb Audioで音量を絞る
@@ -1108,11 +1115,51 @@
   let lastTap = 0, lastZone = null, multiSkip = 0, multiTimer = null, multiZone = null;
   const nearCenter = (p, rx, ry) => Math.abs(p.x - p.w / 2) < rx && Math.abs(p.y - p.h / 2) < ry;
 
+  // ---- 2本指で拡大・移動 ----
+  const zoom = { s:1, x:0, y:0 };
+  let pz = null;
+  function applyZoom(){ v.style.transform = zoom.s > 1.001 ? `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.s})` : ''; }
+  function resetZoom(){ zoom.s = 1; zoom.x = zoom.y = 0; applyZoom(); }
+  const pinchInfo = ts => {
+    const a = toLocal(ts[0].clientX, ts[0].clientY), b = toLocal(ts[1].clientX, ts[1].clientY);
+    return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx:(a.x + b.x) / 2, my:(a.y + b.y) / 2 };
+  };
+  function startPinch(ts){
+    mode = 'pinch';
+    const i = pinchInfo(ts);
+    if (!s0) s0 = toLocal(ts[0].clientX, ts[0].clientY);
+    const cx = v.offsetLeft + v.offsetWidth / 2, cy = v.offsetTop + v.offsetHeight / 2;
+    // 指の真ん中の下にある映像の点を覚えとく（その点が指についてくるように）
+    pz = { d0:i.d, s0:zoom.s, cx, cy, qx:(i.mx - cx - zoom.x) / zoom.s, qy:(i.my - cy - zoom.y) / zoom.s };
+  }
+  function movePinch(ts){
+    if (!pz) return;
+    const i = pinchInfo(ts);
+    const s = clamp(pz.s0 * i.d / pz.d0, 1, 5);
+    let x = i.mx - pz.cx - pz.qx * s, y = i.my - pz.cy - pz.qy * s;
+    const mx = (s - 1) * v.offsetWidth / 2, my = (s - 1) * v.offsetHeight / 2;
+    zoom.s = s; zoom.x = clamp(x, -mx, mx); zoom.y = clamp(y, -my, my);
+    applyZoom();
+    chip('🔍 ' + s.toFixed(1) + '倍', 'ピンチで戻す');
+  }
+  function endPinch(){
+    pz = null;
+    if (zoom.s < 1.05) resetZoom();
+    hideChip(800);
+  }
+
   g.addEventListener('touchstart', e => {
     if (!v.getAttribute('src')) return;
     e.preventDefault();
     resumeAudio();
-    if (e.touches.length > 1) { clearTimeout(holdTimer); if (mode === 'hold') { v.playbackRate = opt.rate; hideChip(); } mode = 'multi'; return; }
+    if (e.touches.length > 1) {
+      clearTimeout(holdTimer);
+      if (mode === 'hold') { v.playbackRate = opt.rate; hideChip(); if (holdWasPaused) v.pause(); }
+      if (mode === 'scrub') hidePreview();
+      if (mode === 'close') applyZoom();
+      startPinch(e.touches);
+      return;
+    }
     const t = e.touches[0];
     s0 = toLocal(t.clientX, t.clientY); st = Date.now(); mode = null;
     stPerf = performance.now(); lastX = s0.x; lastY = s0.y; lastT = stPerf; velS = 0; accum = 0;
@@ -1128,8 +1175,9 @@
   }, {passive:false});
 
   g.addEventListener('touchmove', e => {
-    if (!v.getAttribute('src') || !s0 || mode === 'multi') return;
+    if (!v.getAttribute('src') || !s0) return;
     e.preventDefault();
+    if (mode === 'pinch') { if (e.touches.length >= 2) movePinch(e.touches); return; }
     const t = e.touches[0], p = toLocal(t.clientX, t.clientY);
     const dx = p.x - s0.x, dy = p.y - s0.y, ax = Math.abs(dx), ay = Math.abs(dy);
     if (mode === null) {
@@ -1160,7 +1208,7 @@
       const ddy = p.y - lastY; lastY = p.y;
       bright = clamp(bright - ddy / (p.h * 0.7) * 1.35, 0.1, 1.5);
       applyBright(); store.set('bright', bright);
-      chip('☀︎ ' + Math.round(bright / 1.5 * 100) + '%', '明るさ');
+      chip('☀︎ ' + Math.round(bright * 100) + '%', '明るさ');
     } else if (mode === 'vol') {
       const ddy = p.y - lastY; lastY = p.y;
       if (opt.fineVol && ensureAudio()) {
@@ -1181,9 +1229,10 @@
   }, {passive:false});
 
   const end = e => {
-    if (!v.getAttribute('src') || !s0) { if (mode === 'multi' && e.touches.length === 0) mode = null; return; }
+    if (!v.getAttribute('src') || !s0) return;
     e.preventDefault();
     if (e.touches && e.touches.length > 0) return;
+    if (mode === 'pinch') { endPinch(); mode = null; s0 = null; return; }
     clearTimeout(holdTimer);
     const ch = e.changedTouches && e.changedTouches[0];
     const p = ch ? toLocal(ch.clientX, ch.clientY) : s0;
@@ -1192,7 +1241,7 @@
       if (holdWasPaused) v.pause();
     } else if (mode === 'close') {
       if (p.y - s0.y > 90) goHome();
-      else { v.style.transform = ''; v.style.opacity = ''; }
+      else { applyZoom(); v.style.opacity = ''; }
     } else if (mode === 'scrub') {
       const jump = Math.round(accum);
       if (v.duration && jump !== 0) v.currentTime = clamp(v.currentTime + jump, 0, v.duration);
