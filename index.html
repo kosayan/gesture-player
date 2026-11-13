@@ -280,7 +280,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-13';
+  const APP_VERSION = '2026.11.13-14';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -509,19 +509,26 @@
   }
   $('reloadBtn').onclick = () => { $('sheet').classList.remove('open'); reloadVideo(); };
   $('chapBtn').onclick = () => openChap();
-  // ピクチャーインピクチャー（標準API、なければiOSの独自API）
+  // ピクチャーインピクチャー
+  // iPhoneは独自API（webkitSetPresentationMode）を優先。タップの直後に「待たずに」呼ばんと拒否されるので、
+  // 再生開始などは呼び出しの後にする
+  const pipWk = typeof v.webkitSupportsPresentationMode === 'function' && v.webkitSupportsPresentationMode('picture-in-picture');
   const pipStd = !!(document.pictureInPictureEnabled && v.requestPictureInPicture);
-  const pipWk = !pipStd && typeof v.webkitSupportsPresentationMode === 'function' && v.webkitSupportsPresentationMode('picture-in-picture');
   if (pipStd || pipWk) $('pipBtn').style.display = '';
-  const inPip = () => pipStd ? document.pictureInPictureElement === v : v.webkitPresentationMode === 'picture-in-picture';
-  $('pipBtn').onclick = async () => {
+  const inPip = () => (pipWk && v.webkitPresentationMode === 'picture-in-picture') || (document.pictureInPictureElement === v);
+  const pipFail = why => chip('小窓にできへんかった', why, 2500);
+  $('pipBtn').onclick = () => {
     try {
-      if (inPip()) { pipStd ? await document.exitPictureInPicture() : v.webkitSetPresentationMode('inline'); }
-      else {
-        if (v.paused) await v.play().catch(()=>{});
-        pipStd ? await v.requestPictureInPicture() : v.webkitSetPresentationMode('picture-in-picture');
+      if (inPip()) {
+        if (pipWk) v.webkitSetPresentationMode('inline'); else document.exitPictureInPicture().catch(()=>{});
+      } else if (pipWk) {
+        v.webkitSetPresentationMode('picture-in-picture');
+        setTimeout(() => { if (!inPip()) pipFail('この起動方法では対応してへんみたい'); }, 800);
+      } else {
+        v.requestPictureInPicture().catch(e => pipFail(e && e.name ? e.name : ''));
       }
-    } catch(e) { chip('ピクチャーインピクチャーを開けへんかった', '', 1800); }
+      if (v.paused) v.play().catch(()=>{});
+    } catch(e) { pipFail(e && e.name ? e.name : ''); }
     keepUI();
   };
   $('prevBtn').onclick = () => { stepVideo(-1); keepUI(); };
