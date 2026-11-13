@@ -30,23 +30,23 @@
   video#v { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; transition:opacity .15s; }
   #gesture { position:absolute; inset:0; touch-action:none; z-index:2; }
 
-  .ripple { position:absolute; z-index:3; pointer-events:none;
+  .ripple { display:none !important; position:absolute; z-index:3; pointer-events:none;
     display:flex; align-items:center; justify-content:center;
     background:rgba(255,255,255,.06); opacity:0; transition:opacity .25s; }
   .ripple b { width:52px; height:52px; border-radius:50%; background:rgba(0,0,0,.6);
     display:flex; align-items:center; justify-content:center; font-size:22px; }
   .show { opacity:1 !important; }
 
-  #chip { position:absolute; right:14px; bottom:64px; z-index:5; pointer-events:none;
-    background:rgba(0,0,0,.72); border-radius:12px; padding:8px 13px; text-align:right;
-    font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; }
-  #chip small { display:block; font-size:12px; font-weight:500; color:#ccc; margin-top:2px; }
+  #chip { position:absolute; right:16px; bottom:64px; z-index:5; pointer-events:none; text-align:right;
+    color:rgba(255,255,255,.72); text-shadow:0 1px 3px rgba(0,0,0,.55);
+    font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; }
+  #chip small { display:block; font-size:11px; font-weight:500; color:rgba(255,255,255,.6); margin-top:1px; }
 
   /* 中央の再生ボタン（タップの判定はジェスチャー側でやる） */
   #center { position:absolute; left:50%; top:50%; width:68px; height:68px; margin:-34px 0 0 -34px; z-index:4;
-    border-radius:50%; background:rgba(0,0,0,.45); color:#fff; pointer-events:none;
+    color:rgba(255,255,255,.55); filter:drop-shadow(0 1px 3px rgba(0,0,0,.4)); pointer-events:none;
     display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
-  #center svg { width:28px; height:28px; fill:currentColor; }
+  #center svg { width:34px; height:34px; fill:currentColor; }
   #closeBtn { position:absolute; left:10px; top:10px; width:52px; height:52px; z-index:4; border:0; border-radius:50%;
     background:rgba(0,0,0,.22); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   #closeBtn svg { width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
@@ -56,11 +56,11 @@
   /* 縦画面など幅が狭いときはアイコンをシークバーの上の段（右寄せ）に */
   #controls.narrow #mainRow { flex-wrap:wrap; }
   #controls.narrow #icons { order:-1; width:100%; justify-content:flex-end; margin-bottom:2px; }
-  .navb { position:absolute; top:50%; width:52px; height:52px; margin-top:-26px; z-index:4; border:0; border-radius:50%;
-    background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
-  .navb svg { width:22px; height:22px; fill:currentColor; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-  #prevBtn { left:calc(50% - 120px); }
-  #nextBtn { left:calc(50% + 68px); }
+  .navb { position:absolute; top:17px; width:38px; height:38px; z-index:4; border:0; background:none; padding:0;
+    color:rgba(255,255,255,.6); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
+  .navb svg { width:17px; height:17px; fill:currentColor; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  #prevBtn { left:68px; }
+  #nextBtn { left:106px; }
   #controls { position:absolute; left:0; right:0; bottom:0; z-index:4; pointer-events:none;
     padding:24px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
   #controls button, #controls #bar { pointer-events:auto; }
@@ -83,29 +83,29 @@
   #bar.pv #knob { width:18px; height:18px; margin:-9px 0 0 -9px; }
   #preview { position:absolute; bottom:40px; transform:translateX(-50%); display:none; text-align:center; pointer-events:none; }
   #preview canvas { display:block; border:2px solid #fff; border-radius:8px; background:#111; }
-  #pvTime { display:inline-block; margin-top:5px; font-size:13px; font-weight:700; background:rgba(0,0,0,.75); padding:3px 9px; border-radius:7px; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  #pvTime em { font-style:normal; color:var(--accent); margin-left:6px; }
+  #pvTime { display:inline-block; margin-top:4px; font-size:12px; font-weight:600; color:rgba(255,255,255,.85); background:rgba(0,0,0,.28); padding:2px 8px; border-radius:6px; text-shadow:0 1px 2px rgba(0,0,0,.5); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  #pvTime em { font-style:normal; color:rgba(255,255,255,.6); margin-left:6px; font-weight:500; }
   #bar.pv #preview { display:block; }
 
   /* チャプター一覧 */
   #chap { position:absolute; inset:0; z-index:6; display:none; pointer-events:none; }
   #chap.open { display:block; }
-  #chapPanel { position:absolute; left:0; right:0; bottom:0;
-    background:rgba(12,12,14,.45); border-radius:14px 14px 0 0; padding:8px 10px 8px; pointer-events:auto; touch-action:none; animation:up .18s ease-out; }
-  .chapHint { font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap; }
+  #chapPanel { position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:6px;
+    padding:6px 10px 8px; pointer-events:auto; touch-action:none; animation:up .18s ease-out; }
   #chap { container-type:inline-size; }
-  @container (max-width:560px) { .chapHint { display:none; } #chapSteps button { padding:5px 6px; font-size:11.5px; } }
+  #chapSel { flex:0 0 auto; width:58px; height:34px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); border:1px solid rgba(255,255,255,.25);
+    border-radius:8px; font-size:12px; padding:0 4px; -webkit-appearance:none; appearance:none; text-align:center; text-align-last:center; }
   @keyframes up { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
-  #chapHead { font-size:13px; color:#aaa; padding:0 0 7px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  #chapSteps { display:flex; gap:4px; flex-wrap:nowrap; overflow:hidden; }
-  #chapSteps button { border:0; background:rgba(255,255,255,.1); color:#ccc; font-size:12px; padding:5px 8px; border-radius:7px; white-space:nowrap; }
-  #chapSteps button.on { background:rgba(255,255,255,.85); color:#000; font-weight:700; }
-  #chapGrid { display:flex; gap:6px; overflow:hidden; touch-action:none; padding-bottom:2px; }
+  #chapGrid { flex:1; min-width:0; display:flex; gap:6px; overflow:hidden; touch-action:none; }
+  /* チャプター表示中にスワイプで飛ぶとき：シークバーとサムネをチャプター欄の上に出す（操作はできへん） */
+  #stage.chapOn #controls { bottom:var(--chapH, 110px); background:none; }
+  #stage.chapOn #icons { display:none; }
+  #stage.chapOn #bar { pointer-events:none !important; }
   #stage.chapOn #chip { bottom:calc(var(--chapH, 130px) + 12px); }
-  .ch { position:relative; flex:0 0 auto; width:min(30vw, 124px); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
+  .ch { position:relative; flex:0 0 auto; width:calc((100cqw - 104px) / 5.3); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
   .ch.cur { border-color:var(--accent); }
   .ch canvas { display:block; width:100%; aspect-ratio:16/9; background:#111; }
-  .ch span { position:absolute; left:4px; bottom:4px; font-size:11px; font-weight:700; background:rgba(0,0,0,.75); padding:1px 6px; border-radius:5px; font-variant-numeric:tabular-nums; }
+  .ch span { position:absolute; left:5px; bottom:3px; font-size:11px; font-weight:600; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.8); font-variant-numeric:tabular-nums; }
 
   /* ===== ホーム ===== */
   #home { position:fixed; inset:0; z-index:20; background:#0d0d0f; overflow-y:auto; -webkit-overflow-scrolling:touch;
@@ -133,7 +133,7 @@
   #sheet { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.55); display:none; align-items:flex-end; }
   #sheet.open { display:flex; }
   #sheet.playing { background:rgba(0,0,0,.15); }
-  #sheet.playing .panel { max-height:52%; }
+  #sheet.playing .panel { max-height:74%; }
   .panel { width:100%; max-width:560px; margin:0 auto; background:#1c1c1e; border-radius:18px 18px 0 0;
     padding:18px calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px);
     max-height:88%; overflow:auto; -webkit-overflow-scrolling:touch; }
@@ -199,7 +199,7 @@
     </div>
   </div>
 
-  <div id="chap"><div id="chapPanel"><div id="chapHead"><div id="chapSteps"></div><span class="chapHint">下にスワイプで閉じる</span></div><div id="chapGrid"></div></div></div>
+  <div id="chap"><div id="chapPanel"><select id="chapSel" aria-label="チャプターの間隔"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
@@ -274,7 +274,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-11';
+  const APP_VERSION = '2026.11.13-12';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -831,10 +831,9 @@
   let chapOpen = false, chapBuiltFor = null, chapObs = null, chapItems = [];
   const CHAP_STEPS = [10, 30, 60, 120, 180, 300, 600, 1800];
   const stepLabel = st => st < 60 ? st + '秒' : st / 60 + '分';
-  $('chapSteps').innerHTML = CHAP_STEPS.map(st => `<button data-chap="${st}">${stepLabel(st)}</button>`).join('');
   function buildChap(){
     const key = curId + '_' + opt.chap + '_' + Math.round(v.duration || 0);
-    document.querySelectorAll('#chapSteps button').forEach(b => b.classList.toggle('on', Number(b.dataset.chap) === opt.chap));
+    $('chapSel').value = opt.chap;
     if (chapBuiltFor === key) return;
     chapBuiltFor = key;
     const grid = $('chapGrid'); grid.innerHTML = ''; chapItems = [];
@@ -886,12 +885,14 @@
   function closeChap(){
     if (!chapOpen) return;
     chapOpen = false; stage.classList.remove('chapOn'); $('chap').classList.remove('open');
+    if (!uiShown) $('controls').classList.add('hidden');
     chapQueue = []; chapItems.forEach(it => it.queued = it.done); cancelAnimationFrame(chapRaf);
   }
   // チャプター欄の操作（回転してても使えるように自前で処理）：横＝慣性つきスクロール、下＝閉じる、タップ＝選択
   let cs = null, chapVel = 0, chapRaf = 0;
   const panel = $('chapPanel'), grid = $('chapGrid');
   panel.addEventListener('touchstart', e => {
+    if (e.target.tagName === 'SELECT') { cs = null; return; } // 間隔の選択はiPhone標準のくるくるを出す
     e.preventDefault(); e.stopPropagation();
     cancelAnimationFrame(chapRaf);
     const t = e.touches[0], p = toLocal(t.clientX, t.clientY);
@@ -918,12 +919,8 @@
     const ch = e.changedTouches[0], p = toLocal(ch.clientX, ch.clientY), dy = p.y - cs.y;
     panel.style.transform = '';
     if (!cs.dir) {
-      const stepBtn = cs.target.closest && cs.target.closest('button[data-chap]');
       const item = cs.target.closest && cs.target.closest('.ch');
-      if (stepBtn) {
-        setOpt('chap', Number(stepBtn.dataset.chap));
-        buildChap(); markChapCur(); centerChapCur(); thumbLoop();
-      } else if (item) jumpTo(chapItems[item.dataset.i].start);
+      if (item) jumpTo(chapItems[item.dataset.i].start);
     } else if (cs.dir === 'v' && dy > 40) closeChap();
     else if (cs.dir === 'h' && cs.inGrid) {
       let vel = performance.now() - cs.lt > 80 ? 0 : -chapVel; // 指を止めてから離したら滑らせへん
@@ -937,6 +934,10 @@
     cs = null;
   }, {passive:false});
   panel.addEventListener('touchcancel', () => { cs = null; panel.style.transform = ''; });
+  $('chapSel').addEventListener('change', e => {
+    setOpt('chap', Number(e.target.value));
+    buildChap(); markChapCur(); centerChapCur(); thumbLoop();
+  });
 
   // ================= 回転＆セーフエリア =================
   let rot = store.get('rot', 0);
@@ -1010,10 +1011,10 @@
   if (canVol) try { v.volume = vol; } catch(e){}
 
   // ================= ジェスチャー =================
-  const HOLD_MS = 350, DOUBLE_MS = 280, CENTER_R = 36;
+  const HOLD_MS = 350, DOUBLE_MS = 210, MULTI_MS = 500, CENTER_R = 36;
   let s0 = null, st = 0, holdTimer = null, mode = null, holdWasPaused = false;
   let lastX = 0, lastY = 0, lastT = 0, velS = 0, accum = 0, stPerf = 0;
-  let lastTap = 0, lastZone = null, uiBeforeTap = false, multiSkip = 0, multiTimer = null, multiZone = null;
+  let lastTap = 0, lastZone = null, multiSkip = 0, multiTimer = null, multiZone = null;
   const nearCenter = (p, rx, ry) => Math.abs(p.x - p.w / 2) < rx && Math.abs(p.y - p.h / 2) < ry;
 
   g.addEventListener('touchstart', e => {
@@ -1043,7 +1044,7 @@
     if (mode === null) {
       if (ax > 10 || ay > 10) clearTimeout(holdTimer);
       if (chapOpen && dy > 18 && ay > ax * 1.5) { mode = 'chapclose'; closeChap(); }                    // チャプター表示中に下へ＝チャプターを閉じる
-      else if (nearCenter(s0, CENTER_R, CENTER_R + 10) && dy > 16 && ay > ax * 1.8) mode = 'close';   // 中央を下へ＝閉じる
+      else if (Math.abs(s0.x - p.w / 2) < 40 && s0.y < p.h * 0.85 && dy > 16 && ay > ax * 1.8) mode = 'close'; // 中央の縦帯を下へ＝閉じる
       else if (!uiShown && !chapOpen && s0.y > p.h * 0.65 && dy < -30 && ay > ax * 1.2) { mode = 'chap'; openChap(); } // UI非表示時、下の方から上へ＝チャプター
       else if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }           // 左右＝早送り・巻き戻し
       else if (ay > 26 && ay > ax * 2.2) { mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0; } // 上下＝明るさ・音量
@@ -1061,7 +1062,8 @@
       accum += ddx / opt.sens * mult;
       lastX = p.x; lastT = now;
       const jump = Math.round(accum);
-      if (!uiShown) showUI();
+      if (chapOpen) $('controls').classList.remove('hidden'); // チャプター表示中はシークバーとサムネだけ出す
+      else if (!uiShown) showUI();
       showPreview(clamp(v.currentTime + jump, 0, v.duration), jump);
     } else if (mode === 'bright') {
       const ddy = p.y - lastY; lastY = p.y;
@@ -1103,7 +1105,8 @@
     } else if (mode === 'scrub') {
       const jump = Math.round(accum);
       if (v.duration && jump !== 0) v.currentTime = clamp(v.currentTime + jump, 0, v.duration);
-      setTimeout(hidePreview, 300); keepUI();
+      setTimeout(() => { hidePreview(); if (chapOpen && !uiShown) $('controls').classList.add('hidden'); }, 300);
+      keepUI();
     } else if (mode === 'bright' || mode === 'vol') {
       hideChip(700);
     } else if (mode === null && Date.now() - st < HOLD_MS) {
@@ -1115,20 +1118,19 @@
   g.addEventListener('touchcancel', end, {passive:false});
 
   // タップ：1回目で即座にUIを出し入れ。2回目が来たらUIを元に戻してスキップ
+  // タップ：スキップ範囲は2回目を少しだけ待ってからUIを出し入れ（スキップ時にUIが出えへんように）
+  let tapTimer = null;
   function handleTap(p){
     const now = Date.now();
-    if (uiShown && nearCenter(p, CENTER_R, CENTER_R) && !multiTimer) { togglePlay(); keepUI(); lastTap = 0; return; }
+    if (uiShown && nearCenter(p, CENTER_R, CENTER_R) && !multiTimer && now - lastTap > DOUBLE_MS) { clearTimeout(tapTimer); togglePlay(); keepUI(); lastTap = 0; return; }
     const zone = zoneOf(p);
     if (multiTimer && zone && zone === multiZone) { doSkip(zone); return; }
-    if (now - lastTap < DOUBLE_MS && zone && zone === lastZone) {
-      lastTap = 0;
-      uiBeforeTap ? showUI() : hideUI();
-      doSkip(zone);
-      return;
-    }
-    lastTap = now; lastZone = zone; uiBeforeTap = uiShown;
+    if (now - lastTap < DOUBLE_MS && zone && zone === lastZone) { clearTimeout(tapTimer); lastTap = 0; doSkip(zone); return; }
+    lastTap = now; lastZone = zone;
+    clearTimeout(tapTimer);
     if (chapOpen) return;
-    uiShown ? hideUI() : showUI();
+    if (!zone) { uiShown ? hideUI() : showUI(); return; }
+    tapTimer = setTimeout(() => { uiShown ? hideUI() : showUI(); }, DOUBLE_MS);
   }
   function doSkip(zone){
     if (multiZone && multiZone !== zone) multiSkip = 0;
@@ -1140,13 +1142,13 @@
     const el = zone === 'R' ? $('rippleU') : $('rippleD');
     (zone === 'R' ? $('rippleD') : $('rippleU')).classList.remove('show');
     el.classList.add('show');
-    chip((sign < 0 ? '« −' : '» +') + multiSkip + '秒', fmt(v.currentTime) + ' / ' + fmt(v.duration));
+    chip((sign < 0 ? '−' : '+') + multiSkip + '秒', '');
     updateBar();
     clearTimeout(multiTimer);
     multiTimer = setTimeout(() => {
       $('rippleU').classList.remove('show'); $('rippleD').classList.remove('show');
       hideChip(); multiSkip = 0; multiTimer = null; multiZone = null;
-    }, 700);
+    }, MULTI_MS);
   }
 
   refreshQuick();
