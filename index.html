@@ -12,55 +12,58 @@
 <meta name="theme-color" content="#000000">
 <title>ジェスチャー動画プレイヤー</title>
 <style>
-  :root { --accent:#ff4d4d; }
+  :root { --accent:#ff4d4d; --fade:.12s; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* 横向きにしたあと文字が勝手に大きくなるiOSの自動拡大を止める */
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html,body { margin:0; height:100%; background:#000; color:#fff;
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
     overflow:hidden; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   button { font-family:inherit; }
   #sa { position:fixed; left:0; top:0; visibility:hidden; pointer-events:none;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  /* 明るさ：アプリ全体（UI・サムネ含む）に黒を重ねる */
+  #dimAll { position:fixed; inset:-50px; background:#000; opacity:0; pointer-events:none; z-index:9999; }
 
   /* ===== プレイヤー ===== */
   #stage { position:fixed; left:0; top:0; overflow:hidden; background:#000; transform-origin:0 0; }
-  video#v { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; }
-  #dim { position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; z-index:1; }
+  video#v { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; transition:opacity .15s; }
   #gesture { position:absolute; inset:0; touch-action:none; z-index:2; }
 
-  .ripple { position:absolute; left:0; right:0; z-index:3; pointer-events:none;
+  .ripple { position:absolute; z-index:3; pointer-events:none;
     display:flex; align-items:center; justify-content:center;
     background:rgba(255,255,255,.06); opacity:0; transition:opacity .25s; }
   .ripple b { width:52px; height:52px; border-radius:50%; background:rgba(0,0,0,.6);
     display:flex; align-items:center; justify-content:center; font-size:22px; }
-  #rippleU { top:0; height:33.33%; }
-  #rippleD { top:33.33%; bottom:0; }
   .show { opacity:1 !important; }
 
-  /* 右下の情報チップ */
-  #chip { position:absolute; right:14px; bottom:54px; z-index:5; pointer-events:none;
+  #chip { position:absolute; right:14px; bottom:108px; z-index:5; pointer-events:none;
     background:rgba(0,0,0,.72); border-radius:12px; padding:8px 13px; text-align:right;
-    font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .15s; }
+    font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; }
   #chip small { display:block; font-size:12px; font-weight:500; color:#ccc; margin-top:2px; }
 
-  /* 中央の再生ボタン */
+  /* 中央の再生ボタン（タップの判定はジェスチャー側でやる） */
   #center { position:absolute; left:50%; top:50%; width:68px; height:68px; margin:-34px 0 0 -34px; z-index:4;
-    border-radius:50%; border:0; background:rgba(0,0,0,.45); color:#fff;
-    display:flex; align-items:center; justify-content:center; transition:opacity .25s; }
+    border-radius:50%; background:rgba(0,0,0,.45); color:#fff; pointer-events:none;
+    display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   #center svg { width:28px; height:28px; fill:currentColor; }
-
   #closeBtn { position:absolute; left:10px; top:10px; width:52px; height:52px; z-index:4; border:0; border-radius:50%;
-    background:rgba(0,0,0,.22); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; transition:opacity .25s; }
+    background:rgba(0,0,0,.22); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   #closeBtn svg { width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 
-  /* 下のバー */
-  #controls { position:absolute; left:0; right:0; bottom:0; z-index:4;
-    padding:26px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.55)); transition:opacity .3s; }
-  .hidden { opacity:0; pointer-events:none; }
+  #controls { position:absolute; left:0; right:0; bottom:0; z-index:4; pointer-events:none;
+    padding:30px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
+  #controls button, #controls #bar { pointer-events:auto; }
+  .hidden { opacity:0 !important; pointer-events:none !important; }
+  .hidden button, .hidden #bar { pointer-events:none !important; }
   .row { display:flex; align-items:center; gap:4px; }
+  .sp { flex:1; }
   .time { font-variant-numeric:tabular-nums; font-size:11px; color:rgba(255,255,255,.75); min-width:40px; text-align:center; }
-  .ib { background:none; border:0; color:rgba(255,255,255,.8); width:36px; height:40px; padding:0;
+  .ib { background:none; border:0; color:rgba(255,255,255,.8); width:38px; height:38px; padding:0;
     display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .ib svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .ib svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .q { width:auto; height:28px; padding:0 10px; margin-right:6px; border:1px solid rgba(255,255,255,.28); border-radius:14px;
+    font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
   #bar { flex:1; height:36px; position:relative; touch-action:none; margin:0 4px; }
   #track { position:absolute; left:0; right:0; top:50%; height:3px; margin-top:-1.5px; background:rgba(255,255,255,.3); border-radius:2px; transition:height .1s, margin .1s; }
@@ -73,6 +76,19 @@
   #pvTime { display:inline-block; margin-top:5px; font-size:13px; font-weight:700; background:rgba(0,0,0,.75); padding:3px 9px; border-radius:7px; font-variant-numeric:tabular-nums; white-space:nowrap; }
   #pvTime em { font-style:normal; color:var(--accent); margin-left:6px; }
   #bar.pv #preview { display:block; }
+
+  /* チャプター一覧 */
+  #chap { position:absolute; inset:0; z-index:6; background:rgba(0,0,0,.3); display:none; }
+  #chap.open { display:block; }
+  #chapPanel { position:absolute; left:0; right:0; bottom:0; max-height:64%; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    background:rgba(18,18,20,.95); border-radius:16px 16px 0 0; padding:10px 12px 16px; transform:translateY(0); animation:up .18s ease-out; }
+  @keyframes up { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
+  #chapHead { font-size:13px; color:#aaa; padding:2px 2px 10px; display:flex; justify-content:space-between; }
+  #chapGrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(124px,1fr)); gap:8px; }
+  .ch { position:relative; border-radius:8px; overflow:hidden; background:#000; border:2px solid transparent; }
+  .ch.cur { border-color:var(--accent); }
+  .ch canvas { display:block; width:100%; aspect-ratio:16/9; background:#111; }
+  .ch span { position:absolute; left:4px; bottom:4px; font-size:11px; font-weight:700; background:rgba(0,0,0,.75); padding:1px 6px; border-radius:5px; font-variant-numeric:tabular-nums; }
 
   /* ===== ホーム ===== */
   #home { position:fixed; inset:0; z-index:20; background:#0d0d0f; overflow-y:auto; -webkit-overflow-scrolling:touch;
@@ -99,12 +115,32 @@
   /* ===== 設定 ===== */
   #sheet { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.55); display:none; align-items:flex-end; }
   #sheet.open { display:flex; }
-  .panel { width:100%; max-width:560px; margin:0 auto; background:#1c1c1e; border-radius:18px 18px 0 0; padding:18px 18px calc(env(safe-area-inset-bottom) + 18px); max-height:88%; overflow:auto; }
+  .panel { width:100%; max-width:560px; margin:0 auto; background:#1c1c1e; border-radius:18px 18px 0 0;
+    padding:18px calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px);
+    max-height:88%; overflow:auto; -webkit-overflow-scrolling:touch; }
   .panel h2 { margin:0 0 8px; font-size:17px; }
+  .panel h3 { margin:18px 0 4px; font-size:13px; color:#999; font-weight:600; }
   .set { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #2c2c2e; font-size:15px; }
+  .set.col { flex-direction:column; align-items:stretch; }
   .set select { background:#2c2c2e; color:#fff; border:0; border-radius:8px; padding:8px 10px; font-size:15px; }
-  .set input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
-  .help { color:#999; font-size:12px; line-height:1.8; margin-top:12px; }
+  .set input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); flex-shrink:0; }
+  .help { color:#999; font-size:12px; line-height:1.8; margin:8px 0 0; }
+  .seg { display:flex; background:#2c2c2e; border-radius:9px; padding:2px; }
+  .seg button { flex:1; border:0; background:none; color:#ccc; padding:8px; font-size:14px; border-radius:7px; }
+  .seg button.on { background:#48484a; color:#fff; font-weight:700; }
+  #zoneBox { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; touch-action:none; border:1px solid #3a3a3c; margin-top:10px; }
+  .za { position:absolute; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; pointer-events:none; }
+  .za.rew { background:rgba(70,130,255,.32); }
+  .za.fwd { background:rgba(255,77,77,.32); }
+  .zh { position:absolute; z-index:2; touch-action:none; }
+  .zh::after { content:''; position:absolute; background:#fff; border-radius:2px; box-shadow:0 0 0 1px rgba(0,0,0,.4); }
+  .zh::before { content:''; position:absolute; width:22px; height:22px; border-radius:50%; background:#fff; left:50%; top:50%; margin:-11px 0 0 -11px; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+  #zoneBox.ud .zh { left:0; right:0; height:36px; margin-top:-18px; }
+  #zoneBox.ud .zh::after { left:0; right:0; top:50%; height:3px; margin-top:-1.5px; }
+  #zoneBox.lr .zh { top:0; bottom:0; width:36px; margin-left:-18px; }
+  #zoneBox.lr .zh::after { top:0; bottom:0; left:50%; width:3px; margin-left:-1.5px; }
+  #hRew::before { background:#7aa7ff; }
+  #hFwd::before { background:#ff8080; }
 </style>
 </head>
 <body>
@@ -112,37 +148,45 @@
 
 <div id="stage">
   <video id="v" playsinline webkit-playsinline preload="auto"></video>
-  <div id="dim"></div>
   <div id="gesture"></div>
 
   <div id="rippleU" class="ripple"><b>«</b></div>
   <div id="rippleD" class="ripple"><b>»</b></div>
   <div id="chip"></div>
 
-  <button id="center" class="hidden"></button>
+  <div id="center" class="hidden"></div>
   <button id="closeBtn" class="hidden" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 
   <div id="controls" class="hidden">
+    <div class="row">
+      <button class="ib q" id="qRate">1x</button>
+      <button class="ib q" id="qHold">長押し 2x</button>
+      <button class="ib q" id="qSkip">10秒</button>
+      <span class="sp"></span>
+      <button class="ib" id="reloadBtn" aria-label="再読み込み"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
+      <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
+      <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+    </div>
     <div class="row">
       <span class="time" id="cur">0:00</span>
       <div id="bar">
         <div id="track"><div id="fill"></div></div>
         <div id="knob"></div>
-        <div id="preview"><canvas id="cv" width="180" height="101"></canvas><span id="pvTime">0:00</span></div>
+        <div id="preview"><canvas id="cv" width="176" height="99"></canvas><span id="pvTime">0:00</span></div>
       </div>
       <span class="time" id="dur">0:00</span>
-      <button class="ib" id="reloadBtn" aria-label="再読み込み"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
-      <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
-      <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
     </div>
   </div>
+
+  <div id="chap"><div id="chapPanel"><div id="chapHead"><span id="chapTitle">チャプター</span><span>外をタップで閉じる</span></div><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
   <h1>🎬 ジェスチャー動画プレイヤー</h1>
-  <p class="sub">長押し＝倍速 ／ ダブルタップ＝下2/3でスキップ・上1/3で巻き戻し<br>
+  <p class="sub">長押し＝倍速 ／ ダブルタップ＝スキップ・巻き戻し<br>
   左右スワイプ＝早送り・巻き戻し（速く動かすほど大きく飛ぶ）<br>
-  左側の上下スワイプ＝明るさ ／ 右側の上下スワイプ＝ミュート切替</p>
+  左側の上下スワイプ＝明るさ ／ 右側の上下スワイプ＝音量<br>
+  中央を下にスワイプ＝閉じる ／ 下から上にスワイプ＝チャプター</p>
   <button class="btn" id="openBtn">＋ 動画を選ぶ</button>
   <input type="file" id="file" accept="video/*" hidden>
   <h2>最近の動画（タップですぐ再生）</h2>
@@ -156,20 +200,39 @@
 <div id="sheet">
   <div class="panel">
     <h2>設定</h2>
+    <h3>再生</h3>
     <div class="set"><span>通常の再生速度</span>
-      <select id="optRate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2</option></select></div>
+      <select id="optRate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2</option><option>2.5</option><option>3</option></select></div>
     <div class="set"><span>長押し中の速度</span>
       <select id="optHold"><option>1.5</option><option selected>2</option><option>3</option><option>4</option></select></div>
     <div class="set"><span>ダブルタップのスキップ秒数</span>
-      <select id="optSkip"><option>5</option><option selected>10</option><option>15</option><option>30</option></select></div>
+      <select id="optSkip"><option>5</option><option selected>10</option><option>15</option><option>30</option><option>60</option></select></div>
     <div class="set"><span>スワイプ感度</span>
       <select id="optSens"><option value="20">ひかえめ</option><option value="12" selected>ふつう</option><option value="7">敏感</option></select></div>
+    <div class="set"><span>チャプターの間隔</span>
+      <select id="optChap"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300" selected>5分</option><option value="600">10分</option><option value="1800">30分</option></select></div>
+
+    <h3>ダブルタップの範囲</h3>
+    <div class="set col">
+      <div class="seg" id="zoneSeg"><button data-m="ud">上下で切り替え</button><button data-m="lr">左右で切り替え</button></div>
+      <div id="zoneBox" class="ud">
+        <div id="zaRew" class="za rew"></div><div id="zaFwd" class="za fwd"></div>
+        <div id="hRew" class="zh"></div><div id="hFwd" class="zh"></div>
+      </div>
+      <p class="help">○をドラッグして範囲を調整してな。青と赤の○を離すと、あいだはダブルタップしても何もせえへん範囲になる（再生ボタンを押し間違えにくくなる）</p>
+    </div>
+
+    <h3>音量</h3>
+    <div class="set"><span>アプリ内で細かく音量調整（実験的）</span><input type="checkbox" id="optFineVol"></div>
+    <p class="help">オンにすると、右側の上下スワイプで0〜100%を細かく調整できる。iPhone本体を最小にしても大きいときに。<br>ただしiPhoneでは音が少し遅れることがある。ズレが気になったらオフにして、アプリを開き直してな。オフのときはミュートの切り替えになる</p>
+
+    <h3>保存</h3>
     <div class="set"><span>最近の動画を保存する数</span>
       <select id="optKeep"><option value="0">保存しない</option><option value="3">3本</option><option value="5" selected>5本</option><option value="10">10本</option><option value="20">20本</option></select></div>
     <div class="set"><span>保存する動画の上限サイズ</span>
       <select id="optMax"><option value="1">1GB</option><option value="3" selected>3GB</option><option value="6">6GB</option><option value="0">上限なし</option></select></div>
     <div class="set"><span>再生位置を覚えとく</span><input type="checkbox" id="optResume" checked></div>
-    <p class="help">・明るさは画面を暗くする／映像を明るくする疑似調整（iPhone本体の明るさは変わらへん）<br>
+    <p class="help">・明るさは画面に黒を重ねる疑似調整（iPhone本体の明るさは変わらへん）<br>
     ・時計とバッテリーを消したいときは、iPhoneの画面回転ロックを外して「縦」モードのまま本体を横にしてな<br>
     ・動画が固まったら ↻ で再読み込み（同じ位置から再開）<br>
     ・動画はiPhoneの中で再生されるだけで、どこにも送信されへんで</p>
@@ -179,14 +242,17 @@
   </div>
 </div>
 
+<div id="dimAll"></div>
+
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const v = $('v'), g = $('gesture'), stage = $('stage');
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-7';
+  const APP_VERSION = '2026.11.13-8';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -208,22 +274,31 @@
   };
   const opt = {
     rate: store.get('rate', 1), hold: store.get('hold', 2), skip: store.get('skip', 10), sens: store.get('sens', 12),
-    resume: store.get('resume', true), keep: store.get('keep', 5), maxGB: store.get('maxGB', 3)
+    chap: store.get('chap', 300), resume: store.get('resume', true), keep: store.get('keep', 5), maxGB: store.get('maxGB', 3),
+    fineVol: store.get('fineVol', false)
   };
-  for (const [id, k] of [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optKeep','keep'],['optMax','maxGB']]) $(id).value = opt[k];
-  $('optResume').checked = opt.resume;
-  const bindOpt = (id, key, num) => $(id).addEventListener('change', e => {
-    opt[key] = e.target.type === 'checkbox' ? e.target.checked : (num ? Number(e.target.value) : e.target.value);
-    store.set(key, opt[key]);
-    if (key === 'rate') v.playbackRate = opt.rate;
+  const SELECTS = [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optChap','chap'],['optKeep','keep'],['optMax','maxGB']];
+  function syncSettingsUI(){
+    for (const [id, k] of SELECTS) $(id).value = opt[k];
+    $('optResume').checked = opt.resume; $('optFineVol').checked = opt.fineVol;
+  }
+  syncSettingsUI();
+  function setOpt(key, val){
+    opt[key] = val; store.set(key, val);
+    if (key === 'rate' && mode !== 'hold') v.playbackRate = val;
     if (key === 'keep') trimRecent().then(renderRecent);
+    if (key === 'chap') chapBuiltFor = null;
+    refreshQuick();
+  }
+  for (const [id, k] of SELECTS) $(id).addEventListener('change', e => setOpt(k, Number(e.target.value)));
+  $('optResume').addEventListener('change', e => setOpt('resume', e.target.checked));
+  $('optFineVol').addEventListener('change', e => {
+    setOpt('fineVol', e.target.checked);
+    if (e.target.checked && curBlob) ensureAudio();
   });
-  bindOpt('optRate','rate',true); bindOpt('optHold','hold',true); bindOpt('optSkip','skip',true); bindOpt('optSens','sens',true);
-  bindOpt('optResume','resume'); bindOpt('optKeep','keep',true); bindOpt('optMax','maxGB',true);
 
   // ================= 保存（IndexedDB） =================
-  // 一覧の情報(meta)と動画本体(blobs)を別々の箱に入れる。
-  // 同じ箱やと、でかい動画の書き込み中に一覧の読み込み・削除・ファイル選択が全部待たされて固まるため。
+  // 一覧の情報(meta)と動画本体(blobs)を別々の箱に入れる（でかい動画の書き込み中に他の処理が待たされへんように）
   let dbp = null;
   function db(){
     if (!dbp) dbp = new Promise((res, rej) => {
@@ -231,7 +306,7 @@
         const r = indexedDB.open('gvp', 2);
         r.onupgradeneeded = () => {
           const d = r.result;
-          if (d.objectStoreNames.contains('videos')) d.deleteObjectStore('videos'); // 旧形式は破棄
+          if (d.objectStoreNames.contains('videos')) d.deleteObjectStore('videos');
           if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath:'id' });
           if (!d.objectStoreNames.contains('blobs')) d.createObjectStore('blobs', { keyPath:'id' });
         };
@@ -242,10 +317,10 @@
     }).catch(e => { dbp = null; throw e; });
     return dbp;
   }
-  async function tx(storeName, mode, fn){
+  async function tx(storeName, txMode, fn){
     const d = await db();
     return new Promise((res, rej) => {
-      const t = d.transaction(storeName, mode), s = t.objectStore(storeName);
+      const t = d.transaction(storeName, txMode), s = t.objectStore(storeName);
       let out; const r = fn(s); if (r) r.onsuccess = () => out = r.result;
       t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort'));
     });
@@ -265,10 +340,10 @@
   }
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
 
-  const saving = new Set(); // 保存中のid
+  const saving = new Set();
   async function saveVideo(file, id){
     if (opt.keep === 0) return;
-    if (opt.maxGB > 0 && file.size > opt.maxGB * 1e9) return; // 大きすぎるのは保存しない（容量・メモリ対策）
+    if (opt.maxGB > 0 && file.size > opt.maxGB * 1e9) return;
     const old = await metaGet(id);
     if (old && old.saved) { metaPatch(id, { at:Date.now() }); return; }
     await metaPut({ id, name:file.name, size:file.size, cover: (old && old.cover) || (coverMem.id === id ? coverMem.data : null), at:Date.now(), saved:false });
@@ -276,7 +351,7 @@
     saving.add(id);
     try {
       await blobPut(id, file);
-      if (await metaGet(id)) await metaPatch(id, { saved:true }); // 保存中に消されてたら本体も消す
+      if (await metaGet(id)) await metaPatch(id, { saved:true });
       else blobDel(id);
     } catch(e) {
       metaDel(id);
@@ -321,7 +396,7 @@
   }
 
   // ================= 動画を開く =================
-  let curId = null, curBlob = null, url = null, needCover = false, coverTries = 0, pendingSeek = null;
+  let curId = null, curBlob = null, url = null, needCover = false, coverTries = 0, pendingSeek = null, errRetry = 0;
   const tv = document.createElement('video'); // サムネ用の裏プレイヤー（iPhoneはページ上に置かんとフレームを描かへん）
   tv.muted = true; tv.playsInline = true; tv.setAttribute('playsinline',''); tv.setAttribute('muted',''); tv.preload = 'auto';
   tv.style.cssText = 'position:fixed;left:0;top:0;width:4px;height:4px;opacity:0.01;pointer-events:none;z-index:-1;';
@@ -333,9 +408,9 @@
     e.target.value = '';
     if (!f) return;
     const id = f.name + '_' + f.size + '_' + (f.lastModified || 0);
-    play(f, id); // 何も待たずにすぐ再生
+    play(f, id);
     metaGet(id).then(m => { if (m && m.cover && curId === id) needCover = false; });
-    saveVideo(f, id); // 保存は裏で
+    saveVideo(f, id);
   });
   let opening = false;
   async function openRecord(m){
@@ -361,18 +436,18 @@
     url = URL.createObjectURL(blob);
     v.src = url; tv.src = url;
   }
-  function tryPlay(){
-    v.play().catch(() => { showUI(); }); // 自動再生できへんときは中央の▶を出しとく
-  }
-  function primeTv(){ tv.play().then(() => tv.pause()).catch(()=>{}); } // iOSは裏プレイヤーも一回再生せなフレームを読まへんことがある
+  function tryPlay(){ v.play().catch(() => showUI()); }
+  function primeTv(){ tv.play().then(() => tv.pause()).catch(()=>{}); }
   function play(blob, id){
-    curId = id; curBlob = blob; needCover = true; coverTries = 0; pendingSeek = null; errRetry = 0;
+    curId = id; curBlob = blob; needCover = true; coverTries = 0; coverNext = 1; pendingSeek = null; errRetry = 0;
     startThumbs(true);
+    chapBuiltFor = null; closeChap();
     setSrc(blob);
     $('home').style.display = 'none';
     $('sheet').classList.remove('open');
     layout();
     v.playbackRate = opt.rate;
+    if (opt.fineVol) ensureAudio();
     tryPlay();
     primeTv();
     showUI();
@@ -390,15 +465,16 @@
     chip('↻ 再読み込み', fmt(t) + ' から再開', 1500);
   }
   $('reloadBtn').onclick = () => { reloadVideo(); keepUI(); };
-  // 閉じたら動画を手放してメモリを空ける
   function goHome(){
     savePos();
     v.pause();
     startThumbs(true);
+    closeChap();
     try { tv.pause(); tv.removeAttribute('src'); tv.load(); } catch(e){}
     try { v.removeAttribute('src'); v.load(); } catch(e){}
     if (url) { URL.revokeObjectURL(url); url = null; }
     curBlob = null; curId = null; previewing = false;
+    v.style.transform = ''; v.style.opacity = '';
     hideUI(); $('chip').classList.remove('show');
     $('home').style.display = 'block';
     renderRecent();
@@ -419,7 +495,7 @@
   // ---- 真っ黒判定（iPhoneはHDR動画などで映像を描けず真っ黒になることがある） ----
   function isBlank(c){
     try {
-      const ctx = c.getContext('2d'), d = ctx.getImageData(0, 0, c.width, c.height).data;
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
       const step = Math.max(4, Math.floor(d.length / 4 / 200)) * 4;
       let max = 0;
       for (let i = 0; i < d.length; i += step) max = Math.max(max, d[i], d[i+1], d[i+2]);
@@ -432,7 +508,6 @@
     let dw = w, dh = w / ar; if (dh < h) { dh = h; dw = h * ar; }
     try { ctx.drawImage(src, (w-dw)/2, (h-dh)/2, dw, dh); } catch(e){}
     if (!isBlank(k)) return k;
-    // 描けへんかったらImageBitmap経由でもう一回
     try {
       if (window.createImageBitmap) {
         const bmp = await createImageBitmap(src);
@@ -444,8 +519,7 @@
     return null;
   }
 
-  // 最近の動画のサムネ：再生中の本編から撮る。真っ黒やったら数秒おきに撮り直す
-  const coverMem = { id:null, data:null }; // 保存が終わる前に撮れた場合用
+  const coverMem = { id:null, data:null };
   let coverBusy = false, coverNext = 1;
   async function captureCover(){
     if (!needCover || coverBusy || !curId || v.readyState < 2 || v.seeking || !v.videoWidth || v.currentTime < coverNext) return;
@@ -459,37 +533,36 @@
       const data = k.toDataURL('image/jpeg', 0.7);
       coverMem.id = id; coverMem.data = data;
       metaPatch(id, { cover:data });
-    } else if (++coverTries >= 5) {
-      needCover = false; // 何回撮っても黒い動画は諦めて🎬表示
-    } else coverNext = v.currentTime + 3;
+    } else if (++coverTries >= 5) needCover = false;
+    else coverNext = v.currentTime + 3;
   }
   let lastSave = 0;
   v.addEventListener('timeupdate', () => {
     captureCover();
     if (!previewing) updateBar();
+    if (chapOpen) markChapCur();
     if (Date.now() - lastSave > 2000) { savePos(); lastSave = Date.now(); }
   });
   v.addEventListener('seeked', () => { coverNext = Math.min(coverNext, v.currentTime + 1); });
   const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
   const ICON_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
   $('center').innerHTML = ICON_PLAY;
-  v.addEventListener('play', () => $('center').innerHTML = ICON_PAUSE);
-  v.addEventListener('pause', () => { $('center').innerHTML = ICON_PLAY; savePos(); if (curBlob) showUI(); });
+  v.addEventListener('play', () => { $('center').innerHTML = ICON_PAUSE; resumeAudio(); });
+  v.addEventListener('pause', () => { $('center').innerHTML = ICON_PLAY; savePos(); if (curBlob && !chapOpen) showUI(); });
   v.addEventListener('ended', () => { if (curId) store.del('pos_' + curId); });
-  // 別アプリに切り替えたら裏の処理を止めてメモリを空ける。戻ってきたら復帰
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       savePos();
       gen++; running = false; liveWant = null;
       try { tv.pause(); tv.removeAttribute('src'); tv.load(); } catch(e){}
     } else if (curBlob && url && $('home').style.display === 'none') {
+      resumeAudio();
       if (v.error || v.readyState === 0) { reloadVideo(); return; }
       startThumbs(false);
       try { tv.src = url; tv.load(); primeTv(); } catch(e){}
     }
   });
   window.addEventListener('pagehide', savePos);
-  let errRetry = 0;
   v.addEventListener('playing', () => errRetry = 0);
   v.addEventListener('error', () => {
     if (!curBlob || document.hidden || !v.getAttribute('src')) return;
@@ -497,13 +570,12 @@
     else chip('再生できへん', '✕で閉じてもう一回開いてみて', 3000);
   });
   const togglePlay = () => v.paused ? v.play().catch(()=>{}) : v.pause();
-  $('center').onclick = () => { togglePlay(); keepUI(); };
 
   // ================= サムネイル =================
-  // ①開いた直後に動画全体のサムネを裏で先に作っとく（すぐ出せる用）
-  // ②スワイプ中はその位置のサムネをピンポイントで取りに行って差し替える
+  // 開いた直後に全体のサムネを裏で120枚作っとく＋スワイプ中はその位置をピンポイントで取りに行く
   const PRE_N = 120;
-  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null;
+  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null, chapQueue = [];
+  let lastDrawnT = -1e9;
   function sizeCanvas(){
     const src = v.videoWidth ? v : tv;
     const ar = src.videoWidth && src.videoHeight ? src.videoHeight / src.videoWidth : 9/16, c = $('cv');
@@ -512,7 +584,7 @@
   function startThumbs(reset){
     gen++;
     if (reset) { thumbs = []; preIdx = 0; }
-    liveWant = null; running = false;
+    liveWant = null; running = false; chapQueue = [];
   }
   function seekTv(t){
     return new Promise(res => {
@@ -524,41 +596,55 @@
       try { if (tv.fastSeek) tv.fastSeek(t); else tv.currentTime = t; } catch(e){ fin(false); }
     });
   }
-  function drawTo(c){
-    try { c.getContext('2d').drawImage(tv, 0, 0, c.width, c.height); return true; } catch(e){ return false; }
+  function frameTo(w, h){
+    const k = document.createElement('canvas'); k.width = w; k.height = h;
+    try { k.getContext('2d').drawImage(tv, 0, 0, w, h); } catch(e){ return null; }
+    return isBlank(k) ? null : k;
   }
   async function thumbLoop(){
     if (running || !tv.src || tv.readyState < 1) return;
     running = true; const my = gen;
     while (my === gen) {
-      let t, kind;
+      let t, kind, item;
       if (liveWant !== null) { t = liveWant; liveWant = null; kind = 'live'; }
+      else if (chapQueue.length) { item = chapQueue.shift(); t = item.t; kind = 'chap'; }
       else if (preIdx < PRE_N && tv.duration) { t = (preIdx + 0.5) * tv.duration / PRE_N; kind = 'pre'; }
       else break;
+      if (kind === 'chap' && item.done) continue;
       const ok = await seekTv(t);
       if (my !== gen) return;
       if (kind === 'pre') preIdx++;
       if (!ok || !tv.videoWidth) continue;
+      const c = $('cv');
       if (kind === 'live') {
         if (!previewing) continue;
-        const c = $('cv'), k = document.createElement('canvas'); k.width = c.width; k.height = c.height;
-        if (drawTo(k) && !isBlank(k)) c.getContext('2d').drawImage(k, 0, 0); // 黒いコマで上書きせえへん
+        const k = frameTo(c.width, c.height);
+        if (k) { c.getContext('2d').drawImage(k, 0, 0); lastDrawnT = t; }
       } else if (kind === 'pre') {
-        const k = document.createElement('canvas'), c = $('cv'); k.width = c.width; k.height = c.height;
-        if (drawTo(k) && !isBlank(k)) thumbs[preIdx - 1] = k;
+        const k = frameTo(c.width, c.height);
+        if (k) thumbs[preIdx - 1] = k;
+      } else if (kind === 'chap') {
+        const k = frameTo(item.cv.width, item.cv.height);
+        if (k) { item.cv.getContext('2d').drawImage(k, 0, 0); item.done = true; }
       }
     }
     if (my === gen) running = false;
   }
+  function nearestPre(t, maxDist){
+    if (!tv.duration) return null;
+    const i = clamp(Math.floor(t / tv.duration * PRE_N), 0, PRE_N - 1);
+    const range = Math.max(1, Math.ceil(maxDist / (tv.duration / PRE_N)));
+    for (let d = 0; d <= range; d++) { const k = thumbs[i - d] || thumbs[i + d]; if (k) return k; }
+    return null;
+  }
+  // スワイプ中のサムネ：2秒未満の変化では切り替えへん（チカチカ防止）
   function requestThumb(t){
-    // まず先に作っといたサムネで即表示
-    if (tv.duration) {
-      const i = clamp(Math.floor(t / tv.duration * PRE_N), 0, PRE_N - 1);
-      let k = thumbs[i];
-      for (let d = 1; !k && d < 6; d++) k = thumbs[i - d] || thumbs[i + d];
-      const c = $('cv'), ctx = c.getContext('2d');
+    if (Math.abs(t - lastDrawnT) < 2) return;
+    if (Math.abs(t - lastDrawnT) > 20) {
+      const c = $('cv'), ctx = c.getContext('2d'), k = nearestPre(t, 30);
       if (k) ctx.drawImage(k, 0, 0, c.width, c.height);
-      else { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, c.width, c.height); } // 別の場面の絵が残らんように
+      else { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, c.width, c.height); }
+      lastDrawnT = t;
     }
     liveWant = t; thumbLoop();
   }
@@ -579,9 +665,9 @@
     $('cur').textContent = fmt(v.currentTime); $('dur').textContent = fmt(v.duration);
     if (v.duration) setBarUI(v.currentTime / v.duration);
   }
-  // シークバーの真上にサムネを出す（バー操作・スワイプ共通）
   function showPreview(t, diffFromNow){
     if (!v.duration) return;
+    if (!previewing) lastDrawnT = -1e9;
     previewing = true;
     const ratio = clamp(t / v.duration, 0, 1);
     setBarUI(ratio);
@@ -615,22 +701,136 @@
   $('bar').addEventListener('touchend', barEnd, {passive:false});
   $('bar').addEventListener('touchcancel', barEnd, {passive:false});
 
+  // ================= クイック設定ボタン（速度・長押し・スキップ） =================
+  const cycle = (list, cur) => list[(list.indexOf(cur) + 1) % list.length] ?? list[0];
+  const rateLabel = r => (Math.round(r * 100) / 100) + 'x';
+  function refreshQuick(){
+    $('qRate').textContent = rateLabel(opt.rate);
+    $('qHold').textContent = '長押し ' + rateLabel(opt.hold);
+    $('qSkip').textContent = opt.skip + '秒';
+    syncSettingsUI(); layoutZones();
+  }
+  $('qRate').onclick = () => { setOpt('rate', cycle([0.5,0.75,1,1.25,1.5,1.75,2,2.5,3], opt.rate)); chip(rateLabel(opt.rate), '再生速度', 900); keepUI(); };
+  $('qHold').onclick = () => { setOpt('hold', cycle([1.5,2,3,4], opt.hold)); chip('▶▶ ' + rateLabel(opt.hold), '長押し中の速度', 900); keepUI(); };
+  $('qSkip').onclick = () => { setOpt('skip', cycle([5,10,15,30,60], opt.skip)); chip(opt.skip + '秒', 'ダブルタップのスキップ', 900); keepUI(); };
+
   // ================= 設定シート =================
-  const openSheet = () => $('sheet').classList.add('open');
+  const openSheet = () => { $('sheet').classList.add('open'); drawZoneEditor(); };
   $('setBtn').onclick = openSheet; $('setBtn2').onclick = openSheet;
   $('closeSheet').onclick = () => $('sheet').classList.remove('open');
   $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('sheet').classList.remove('open'); });
 
+  // ================= ダブルタップの範囲 =================
+  // ud：上＝巻き戻し / 下＝早送り、lr：左＝巻き戻し / 右＝早送り。rew〜fwdのあいだは何もしない範囲
+  let zMode = store.get('zMode', 'ud');
+  const zones = { ud: store.get('z_ud', [1/3, 1/3]), lr: store.get('z_lr', [0.5, 0.5]) };
+  function zoneOf(p){
+    const pos = zMode === 'ud' ? p.y / p.h : p.x / p.w, [a, b] = zones[zMode];
+    return pos < a ? 'R' : pos >= b ? 'F' : null;
+  }
+  function placeArea(el, from, to){
+    const s = el.style; s.top = s.left = s.right = s.bottom = s.width = s.height = '';
+    if (zMode === 'ud') { s.left = '0'; s.right = '0'; s.top = from * 100 + '%'; s.height = (to - from) * 100 + '%'; }
+    else { s.top = '0'; s.bottom = '0'; s.left = from * 100 + '%'; s.width = (to - from) * 100 + '%'; }
+  }
+  function layoutZones(){
+    const [a, b] = zones[zMode];
+    placeArea($('rippleU'), 0, a); placeArea($('rippleD'), b, 1);
+  }
+  function drawZoneEditor(){
+    const box = $('zoneBox'), [a, b] = zones[zMode];
+    box.className = zMode;
+    document.querySelectorAll('#zoneSeg button').forEach(bt => bt.classList.toggle('on', bt.dataset.m === zMode));
+    placeArea($('zaRew'), 0, a); placeArea($('zaFwd'), b, 1);
+    $('zaRew').textContent = zMode === 'ud' ? '« 巻き戻し' : '« 巻き戻し';
+    $('zaFwd').textContent = '早送り »';
+    for (const [id, val] of [['hRew', a], ['hFwd', b]]) {
+      const s = $(id).style; s.top = s.left = '';
+      if (zMode === 'ud') s.top = val * 100 + '%'; else s.left = val * 100 + '%';
+    }
+    // ○が重なってるときは少しずらして両方つかめるようにする
+    const same = Math.abs(a - b) < 0.02;
+    $('hRew').style.transform = same ? (zMode === 'ud' ? 'translateX(-24px)' : 'translateY(-24px)') : '';
+    $('hFwd').style.transform = same ? (zMode === 'ud' ? 'translateX(24px)' : 'translateY(24px)') : '';
+    layoutZones();
+  }
+  document.querySelectorAll('#zoneSeg button').forEach(bt => bt.addEventListener('click', () => {
+    zMode = bt.dataset.m; store.set('zMode', zMode); drawZoneEditor();
+  }));
+  for (const [id, idx] of [['hRew', 0], ['hFwd', 1]]) {
+    const h = $(id);
+    const move = e => {
+      const r = $('zoneBox').getBoundingClientRect();
+      let val = zMode === 'ud' ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+      val = clamp(val, 0.05, 0.95);
+      const z = zones[zMode];
+      z[idx] = val;
+      if (idx === 0 && z[0] > z[1]) z[1] = z[0];
+      if (idx === 1 && z[1] < z[0]) z[0] = z[1];
+      store.set('z_' + zMode, z);
+      drawZoneEditor();
+    };
+    h.addEventListener('pointerdown', e => { e.preventDefault(); h.setPointerCapture(e.pointerId); h.onpointermove = move; move(e); });
+    const up = () => { h.onpointermove = null; };
+    h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  }
+
+  // ================= チャプター =================
+  let chapOpen = false, chapBuiltFor = null, chapObs = null, chapItems = [];
+  function buildChap(){
+    const key = curId + '_' + opt.chap + '_' + Math.round(v.duration || 0);
+    if (chapBuiltFor === key) return;
+    chapBuiltFor = key;
+    const grid = $('chapGrid'); grid.innerHTML = ''; chapItems = [];
+    chapQueue = [];
+    if (chapObs) chapObs.disconnect();
+    const step = opt.chap, n = Math.max(1, Math.ceil((v.duration || 0) / step));
+    $('chapTitle').textContent = `チャプター（${step < 60 ? step + '秒' : step / 60 + '分'}ごと・${n}個）`;
+    chapObs = 'IntersectionObserver' in window ? new IntersectionObserver(ents => {
+      for (const en of ents) if (en.isIntersecting) {
+        const it = chapItems[en.target.dataset.i];
+        if (it && !it.done && !it.queued) { it.queued = true; chapQueue.push(it); }
+      }
+      thumbLoop();
+    }, { root:$('chapPanel'), rootMargin:'120px' }) : null;
+    for (let i = 0; i < n; i++) {
+      const t = Math.min(i * step + (i === 0 ? 0.5 : 0), Math.max(0, (v.duration || 0) - 0.5));
+      const el = document.createElement('div'); el.className = 'ch'; el.dataset.i = i;
+      el.innerHTML = `<canvas width="192" height="108"></canvas><span>${fmt(i * step)}</span>`;
+      const it = { t, cv: el.querySelector('canvas'), el, done:false, queued:false };
+      const k = nearestPre(t, step / 2); // 先に作ってあるサムネで仮表示
+      if (k) it.cv.getContext('2d').drawImage(k, 0, 0, it.cv.width, it.cv.height);
+      el.addEventListener('click', e => { e.stopPropagation(); v.currentTime = i * step; markChapCur(); });
+      chapItems.push(it); grid.appendChild(el);
+      if (chapObs) chapObs.observe(el); else { it.queued = true; chapQueue.push(it); }
+    }
+  }
+  function markChapCur(){
+    const i = Math.floor(v.currentTime / opt.chap);
+    chapItems.forEach((it, j) => it.el.classList.toggle('cur', j === i));
+  }
+  function openChap(){
+    if (!v.duration || chapOpen) return;
+    chapOpen = true; hideUI();
+    $('chap').classList.add('open');
+    buildChap(); markChapCur();
+    const cur = chapItems[Math.floor(v.currentTime / opt.chap)];
+    if (cur) cur.el.scrollIntoView({ block:'center' });
+    thumbLoop();
+  }
+  function closeChap(){ chapOpen = false; $('chap').classList.remove('open'); chapQueue = []; chapItems.forEach(it => it.queued = it.done); }
+  $('chap').addEventListener('click', e => { if (e.target.id === 'chap') closeChap(); });
+  $('chap').addEventListener('touchstart', e => { if (e.target.id === 'chap') { e.preventDefault(); closeChap(); } }, {passive:false});
+
   // ================= 回転＆セーフエリア =================
-  let rot = store.get('rot', 0); // 0 / 90 / 270
-  let box = { L:0, T:0, sw:0, sh:0 };
+  let rot = store.get('rot', 0);
+  let box = { L:0, T:0, aw:0, ah:0 };
   function insets(){
     const cs = getComputedStyle($('sa'));
     return { t:parseFloat(cs.paddingTop)||0, r:parseFloat(cs.paddingRight)||0, l:parseFloat(cs.paddingLeft)||0 };
   }
   function layout(){
     const W = window.innerWidth, H = window.innerHeight, ins = insets(), s = stage.style;
-    // 時計・アイランド・ノッチの領域を避けた範囲だけを使う（ホームバーは映像を重ねてOK）
     const L = ins.l, T = ins.t, aw = W - ins.l - ins.r, ah = H - ins.t;
     box = { L, T, aw, ah };
     if (rot === 0) { s.width = aw+'px'; s.height = ah+'px'; s.left = L+'px'; s.top = T+'px'; s.transform = 'none'; }
@@ -655,7 +855,7 @@
   let uiTimer = null, uiShown = false;
   const UI_IDS = ['controls','center','closeBtn'];
   function showUI(){ uiShown = true; UI_IDS.forEach(id => $(id).classList.remove('hidden')); keepUI(); }
-  function hideUI(){ uiShown = false; UI_IDS.forEach(id => $(id).classList.add('hidden')); }
+  function hideUI(){ uiShown = false; clearTimeout(uiTimer); UI_IDS.forEach(id => $(id).classList.add('hidden')); }
   function keepUI(){ clearTimeout(uiTimer); uiTimer = setTimeout(() => { if (!v.paused && !previewing) hideUI(); }, 2500); }
   let chipTimer = null;
   function chip(main, sub, ms){
@@ -668,25 +868,41 @@
   // ================= 明るさ・音量 =================
   let bright = store.get('bright', 1), vol = store.get('vol', 1);
   function applyBright(){
-    $('dim').style.opacity = bright < 1 ? (1 - bright).toFixed(2) : 0;
+    $('dimAll').style.opacity = bright < 1 ? (1 - bright).toFixed(2) : 0;
     v.style.filter = bright > 1 ? `brightness(${bright.toFixed(2)})` : '';
   }
   applyBright();
-  // iPhoneはWebから音量を変えられへん（変えようとすると音ズレの原因になる）ので、対応端末だけ音量・iPhoneはミュート切替
-  const canVol = (() => { const t = document.createElement('video'); try { t.volume = 0.5; } catch(e){} return t.volume === 0.5; })();
-  try { v.volume = canVol ? vol : 1; } catch(e){}
-  let volAcc = 0;
+  // iPhoneはvolumeを書き換えても音が変わらへん（数字だけ変わる）。細かく調整したい人向けにWeb Audioで音量を絞る
+  const canVol = !isIOS && (() => { const t = document.createElement('video'); try { t.volume = 0.5; } catch(e){} return t.volume === 0.5; })();
+  let actx = null, gainNode = null, audioFailed = false, volAcc = 0;
+  const gainOf = lv => lv * lv; // 小さい音量ほど細かく調整できるように2乗カーブ
+  function ensureAudio(){
+    if (actx || audioFailed) return !!actx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      try { actx = new AC({ latencyHint:'interactive' }); } catch(e){ actx = new AC(); }
+      const src = actx.createMediaElementSource(v);
+      gainNode = actx.createGain(); gainNode.gain.value = gainOf(vol);
+      src.connect(gainNode); gainNode.connect(actx.destination);
+      actx.resume().catch(()=>{});
+      return true;
+    } catch(e){ audioFailed = true; actx = null; return false; }
+  }
+  function resumeAudio(){ if (actx && actx.state !== 'running') actx.resume().catch(()=>{}); }
+  if (canVol) try { v.volume = vol; } catch(e){}
 
   // ================= ジェスチャー =================
-  const HOLD_MS = 350, DOUBLE_MS = 280;
-  let s0 = null, st = 0, holdTimer = null, mode = null, targetTime = 0, holdWasPaused = false;
+  const HOLD_MS = 350, DOUBLE_MS = 280, CENTER_R = 36;
+  let s0 = null, st = 0, holdTimer = null, mode = null, holdWasPaused = false;
   let lastX = 0, lastY = 0, lastT = 0, velS = 0, accum = 0, stPerf = 0;
-  let lastTap = 0, tapTimer = null, multiSkip = 0, multiTimer = null, multiZone = null;
+  let lastTap = 0, lastZone = null, uiBeforeTap = false, multiSkip = 0, multiTimer = null, multiZone = null;
+  const nearCenter = (p, rx, ry) => Math.abs(p.x - p.w / 2) < rx && Math.abs(p.y - p.h / 2) < ry;
 
   g.addEventListener('touchstart', e => {
-    if (!v.src) return;
+    if (!v.getAttribute('src')) return;
     e.preventDefault();
-    if (e.touches.length > 1) { clearTimeout(holdTimer); if (mode === 'hold') { v.playbackRate = opt.rate; hideChip(); } mode = 'multi'; return; } // 2本指は無視
+    resumeAudio();
+    if (e.touches.length > 1) { clearTimeout(holdTimer); if (mode === 'hold') { v.playbackRate = opt.rate; hideChip(); } mode = 'multi'; return; }
     const t = e.touches[0];
     s0 = toLocal(t.clientX, t.clientY); st = Date.now(); mode = null;
     stPerf = performance.now(); lastX = s0.x; lastY = s0.y; lastT = stPerf; velS = 0; accum = 0;
@@ -696,73 +912,82 @@
         holdWasPaused = v.paused;
         v.playbackRate = opt.hold;
         if (v.paused) v.play().catch(()=>{});
-        chip(`▶▶ ${opt.hold}x`, '長押し中');
+        chip(`▶▶ ${rateLabel(opt.hold)}`, '長押し中');
       }
     }, HOLD_MS);
   }, {passive:false});
 
   g.addEventListener('touchmove', e => {
-    if (!v.src || !s0 || mode === 'multi') return;
+    if (!v.getAttribute('src') || !s0 || mode === 'multi') return;
     e.preventDefault();
     const t = e.touches[0], p = toLocal(t.clientX, t.clientY);
     const dx = p.x - s0.x, dy = p.y - s0.y, ax = Math.abs(dx), ay = Math.abs(dy);
     if (mode === null) {
       if (ax > 10 || ay > 10) clearTimeout(holdTimer);
-      // 左右を優先。上下は「かなり縦に」動かしたときだけ反応する
-      // 判定までに動いた分も捨てずに計算に入れる（素早いスワイプ対策）
-      if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }
-      else if (ay > 26 && ay > ax * 2.2) {
-        mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0;
-      }
+      if (nearCenter(s0, CENTER_R, CENTER_R + 10) && dy > 16 && ay > ax * 1.8) mode = 'close';        // 中央を下へ＝閉じる
+      else if (s0.y > p.h * 0.8 && dy < -24 && ay > ax * 1.5) { mode = 'chap'; openChap(); }          // 下の方から上へ＝チャプター
+      else if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }           // 左右＝早送り・巻き戻し
+      else if (ay > 26 && ay > ax * 2.2) { mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0; } // 上下＝明るさ・音量
       else return;
     }
     const now = performance.now();
-    if (mode === 'scrub' && v.duration) {
+    if (mode === 'close') {
+      const d = Math.max(0, dy);
+      v.style.transform = `translateY(${d * 0.6}px) scale(${1 - Math.min(d, 300) / 1500})`;
+      v.style.opacity = String(1 - Math.min(d, 300) / 600);
+    } else if (mode === 'scrub' && v.duration) {
       const ddx = p.x - lastX, dt = Math.max(8, now - lastT);
-      velS = velS * 0.3 + (Math.abs(ddx) / dt) * 0.7;               // 指の速さ(px/ms)
-      const mult = Math.min(80, 1 + Math.pow(velS / 0.4, 2) * 4);   // ゆっくり＝1秒刻み、速い＝大きく
+      velS = velS * 0.3 + (Math.abs(ddx) / dt) * 0.7;
+      const mult = Math.min(80, 1 + Math.pow(velS / 0.4, 2) * 4);
       accum += ddx / opt.sens * mult;
       lastX = p.x; lastT = now;
-      // 指を離すまでは飛ばへん。動画は裏で再生し続けて、飛び先は「今の位置＋スワイプ量」
       const jump = Math.round(accum);
-      targetTime = clamp(v.currentTime + jump, 0, v.duration);
       if (!uiShown) showUI();
-      showPreview(targetTime, jump);
+      showPreview(clamp(v.currentTime + jump, 0, v.duration), jump);
     } else if (mode === 'bright') {
       const ddy = p.y - lastY; lastY = p.y;
-      bright = clamp(bright - ddy / (p.h * 0.7) * 1.35, 0.15, 1.5);
+      bright = clamp(bright - ddy / (p.h * 0.7) * 1.35, 0.1, 1.5);
       applyBright(); store.set('bright', bright);
       chip('☀︎ ' + Math.round(bright / 1.5 * 100) + '%', '明るさ');
     } else if (mode === 'vol') {
       const ddy = p.y - lastY; lastY = p.y;
-      if (canVol) {
-        vol = clamp(vol - ddy / (p.h * 0.7), 0, 1);
+      if (opt.fineVol && ensureAudio()) {
+        vol = clamp(vol - ddy / (p.h * 0.9), 0, 1);
+        gainNode.gain.value = gainOf(vol); store.set('vol', vol);
+        chip((vol === 0 ? '🔇 ' : '🔊 ') + Math.round(vol * 100) + '%', '音量');
+      } else if (canVol) {
+        vol = clamp(vol - ddy / (p.h * 0.9), 0, 1);
         v.volume = vol; store.set('vol', vol);
         chip((vol === 0 ? '🔇 ' : '🔊 ') + Math.round(vol * 100) + '%', '音量');
       } else {
         volAcc += ddy;
         if (volAcc > 40 && !v.muted) v.muted = true;
         if (volAcc < -40 && v.muted) v.muted = false;
-        chip(v.muted ? '🔇 ミュート' : '🔊 音あり', '音量はiPhoneのボタンで調整してな');
+        chip(v.muted ? '🔇 ミュート' : '🔊 音あり', '細かい調整は設定の「音量」から');
       }
     }
   }, {passive:false});
 
   const end = e => {
-    if (!v.src || !s0) return;
+    if (!v.getAttribute('src') || !s0) { if (mode === 'multi' && e.touches.length === 0) mode = null; return; }
     e.preventDefault();
-    if (e.touches && e.touches.length > 0) return; // まだ指が残ってる
+    if (e.touches && e.touches.length > 0) return;
     clearTimeout(holdTimer);
+    const ch = e.changedTouches && e.changedTouches[0];
+    const p = ch ? toLocal(ch.clientX, ch.clientY) : s0;
     if (mode === 'hold') {
       v.playbackRate = opt.rate; hideChip();
-      if (holdWasPaused) v.pause(); // 止めてた状態で長押ししたら、離したらまた止める
+      if (holdWasPaused) v.pause();
+    } else if (mode === 'close') {
+      if (p.y - s0.y > 90) goHome();
+      else { v.style.transform = ''; v.style.opacity = ''; }
     } else if (mode === 'scrub') {
       const jump = Math.round(accum);
       if (v.duration && jump !== 0) v.currentTime = clamp(v.currentTime + jump, 0, v.duration);
       setTimeout(hidePreview, 300); keepUI();
     } else if (mode === 'bright' || mode === 'vol') {
       hideChip(700);
-    } else if (Date.now() - st < HOLD_MS) {
+    } else if (mode === null && Date.now() - st < HOLD_MS) {
       handleTap(s0);
     }
     mode = null; s0 = null;
@@ -770,22 +995,29 @@
   g.addEventListener('touchend', end, {passive:false});
   g.addEventListener('touchcancel', end, {passive:false});
 
+  // タップ：1回目で即座にUIを出し入れ。2回目が来たらUIを元に戻してスキップ
   function handleTap(p){
     const now = Date.now();
-    const zone = p.y < p.h / 3 ? 'U' : 'D'; // 上1/3＝巻き戻し、下2/3＝スキップ
-    if (multiTimer) { doSkip(zone); return; }
-    if (now - lastTap < DOUBLE_MS) { clearTimeout(tapTimer); lastTap = 0; doSkip(zone); return; }
-    lastTap = now;
-    tapTimer = setTimeout(() => { uiShown ? hideUI() : showUI(); }, DOUBLE_MS);
+    if (uiShown && nearCenter(p, CENTER_R, CENTER_R) && !multiTimer) { togglePlay(); keepUI(); lastTap = 0; return; }
+    const zone = zoneOf(p);
+    if (multiTimer && zone && zone === multiZone) { doSkip(zone); return; }
+    if (now - lastTap < DOUBLE_MS && zone && zone === lastZone) {
+      lastTap = 0;
+      uiBeforeTap ? showUI() : hideUI();
+      doSkip(zone);
+      return;
+    }
+    lastTap = now; lastZone = zone; uiBeforeTap = uiShown;
+    uiShown ? hideUI() : showUI();
   }
   function doSkip(zone){
     if (multiZone && multiZone !== zone) multiSkip = 0;
     multiZone = zone;
-    const sign = zone === 'U' ? -1 : 1;
+    const sign = zone === 'R' ? -1 : 1;
     multiSkip += opt.skip;
     v.currentTime = clamp(v.currentTime + sign * opt.skip, 0, v.duration || 0);
-    const el = zone === 'U' ? $('rippleU') : $('rippleD');
-    (zone === 'U' ? $('rippleD') : $('rippleU')).classList.remove('show');
+    const el = zone === 'R' ? $('rippleU') : $('rippleD');
+    (zone === 'R' ? $('rippleD') : $('rippleU')).classList.remove('show');
     el.classList.add('show');
     chip((sign < 0 ? '« −' : '» +') + multiSkip + '秒', fmt(v.currentTime) + ' / ' + fmt(v.duration));
     updateBar();
@@ -796,6 +1028,7 @@
     }, 700);
   }
 
+  refreshQuick();
   renderRecent();
 })();
 </script>
