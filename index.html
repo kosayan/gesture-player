@@ -226,8 +226,8 @@
   左右スワイプ＝早送り・巻き戻し（速く動かすほど大きく飛ぶ）<br>
   左側の上下スワイプ＝明るさ ／ 右側の上下スワイプ＝音量<br>
   中央を下にスワイプ＝閉じる ／ 画面の下のほうから上にスワイプ＝チャプター</p>
-  <button class="btn" id="openBtn">＋ 動画を選ぶ</button>
-  <input type="file" id="file" accept="video/*" hidden>
+  <button class="btn" id="openBtn">＋ 動画を選ぶ（まとめて選べる）</button>
+  <input type="file" id="file" accept="video/*" multiple hidden>
   <h2>最近の動画（タップですぐ再生）</h2>
   <div id="recent"></div>
   <div id="storage"></div>
@@ -293,7 +293,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-16';
+  const APP_VERSION = '2026.11.13-17';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -385,12 +385,12 @@
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
 
   const saving = new Set();
-  async function saveVideo(file, id){
+  async function saveVideo(file, id, addedAt){
     if (opt.keep === 0) return;
     if (opt.maxGB > 0 && file.size > opt.maxGB * 1e9) return;
     const old = await metaGet(id);
     if (old && old.saved) { metaPatch(id, { at:Date.now() }); return; }
-    await metaPut({ id, name:file.name, size:file.size, cover: (old && old.cover) || (coverMem.id === id ? coverMem.data : null), at:Date.now(), added:(old && old.added) || Date.now(), saved:false });
+    await metaPut({ id, name:file.name, size:file.size, cover: (old && old.cover) || (coverMem.id === id ? coverMem.data : null), at:addedAt || Date.now(), added:(old && old.added) || addedAt || Date.now(), saved:false });
     await trimRecent();
     saving.add(id);
     try {
@@ -447,14 +447,26 @@
   document.body.appendChild(tv);
 
   $('openBtn').onclick = () => $('file').click();
+  // まとめて選んだ動画は「今回のプレイリスト」として、名前順で前後に移動できる（保存は裏で1本ずつ）
+  let session = []; // [{id, file, name}]
+  const fileId = f => f.name + '_' + f.size + '_' + (f.lastModified || 0);
+  const natural = new Intl.Collator('ja', { numeric:true, sensitivity:'base' });
   $('file').addEventListener('change', e => {
-    const f = e.target.files && e.target.files[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!f) return;
-    const id = f.name + '_' + f.size + '_' + (f.lastModified || 0);
+    if (!files.length) return;
+    files.sort((a, b) => natural.compare(a.name, b.name));
+    if (files.length > 1) session = files.map(f => ({ id:fileId(f), file:f, name:f.name }));
+    const f = files[0], id = fileId(f);
     play(f, id);
     metaGet(id).then(m => { if (m && m.cover && curId === id) needCover = false; });
-    saveVideo(f, id);
+    if (files.length > 1 && files.length > opt.keep && opt.keep > 0)
+      setTimeout(() => chip(files.length + '本を開いたで', `最近の動画に残るのは${opt.keep}本まで（設定で増やせる）`, 3000), 1600);
+    else if (files.length > 1) setTimeout(() => chip(files.length + '本を開いたで', '⏮ ⏭ で次々に見れる', 2500), 1600);
+    (async () => {
+      const base = Date.now();
+      for (let i = 0; i < files.length; i++) await saveVideo(files[i], fileId(files[i]), base - i); // 選んだ順（名前順）で一覧に並ぶ
+    })();
   });
   let opening = false;
   async function openRecord(m){
@@ -485,6 +497,17 @@
   function primeTv(){ tv.play().then(() => tv.pause()).catch(()=>{}); }
   // 前後の動画へ（最近の動画の並び順で）
   async function stepVideo(dir){
+    // まとめて開いた動画の中におるときは、その並び（名前順）で移動。保存されてなくても行ける
+    const si = session.findIndex(x => x.id === curId);
+    if (si >= 0) {
+      const j = si + dir;
+      if (j < 0) { chip('最初の動画やで', '', 1200); return; }
+      if (j >= session.length) { chip('最後の動画やで', '', 1200); return; }
+      chip(dir > 0 ? '次の動画 ▶︎' : '◀︎ 前の動画', `${session[j].name}（${j + 1}/${session.length}）`, 1400);
+      play(session[j].file, session[j].id);
+      metaGet(session[j].id).then(m => { if (m && m.cover && curId === session[j].id) needCover = false; });
+      return;
+    }
     const list = (await metaAll()).filter(m => m.saved).sort(byAdded);
     if (!list.length) { chip('最近の動画がないで', '', 1200); return; }
     const i = list.findIndex(m => m.id === curId);
