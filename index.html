@@ -39,15 +39,15 @@
 
   #chip { position:absolute; right:16px; bottom:64px; z-index:5; pointer-events:none; text-align:right;
     color:rgba(255,255,255,.72); text-shadow:0 1px 3px rgba(0,0,0,.55);
-    font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; }
-  #chip small { display:block; font-size:11px; font-weight:500; color:rgba(255,255,255,.6); margin-top:1px; }
+    font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; }
+  #chip small { display:block; font-size:12px; font-weight:500; color:rgba(255,255,255,.6); margin-top:1px; }
 
   /* 中央の再生ボタン（タップの判定はジェスチャー側でやる） */
   #center { position:absolute; left:50%; top:50%; width:68px; height:68px; margin:-34px 0 0 -34px; z-index:4;
     color:rgba(255,255,255,.55); filter:drop-shadow(0 1px 3px rgba(0,0,0,.4)); pointer-events:none;
     display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   #center svg { width:34px; height:34px; fill:currentColor; }
-  #closeBtn { position:absolute; left:10px; top:10px; width:52px; height:52px; z-index:4; border:0; border-radius:50%;
+  #closeBtn { position:absolute; right:10px; top:10px; width:52px; height:52px; z-index:4; border:0; border-radius:50%;
     background:rgba(0,0,0,.22); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   #closeBtn svg { width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 
@@ -59,8 +59,8 @@
   .navb { position:absolute; top:17px; width:38px; height:38px; z-index:4; border:0; background:none; padding:0;
     color:rgba(255,255,255,.6); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   .navb svg { width:17px; height:17px; fill:currentColor; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
-  #prevBtn { left:68px; }
-  #nextBtn { left:106px; }
+  #prevBtn { right:106px; }
+  #nextBtn { right:68px; }
   #controls { position:absolute; left:0; right:0; bottom:0; z-index:4; pointer-events:none;
     padding:24px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
   #controls button, #controls #bar { pointer-events:auto; }
@@ -93,6 +93,11 @@
   #chapPanel { position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:6px;
     padding:6px 10px 8px; pointer-events:auto; touch-action:none; animation:up .18s ease-out; }
   #chap { container-type:inline-size; }
+  #chapSide { flex:0 0 auto; display:flex; flex-direction:column; gap:6px; align-items:center; }
+  #chapSync { width:58px; height:30px; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; padding:0; }
+  #chapSync svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  #chapSync.spin svg { animation:spin .4s ease-out; }
+  @keyframes spin { to { transform:rotate(360deg); } }
   #chapSel { flex:0 0 auto; width:58px; height:34px; background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); border:1px solid rgba(255,255,255,.25);
     border-radius:8px; font-size:12px; padding:0 4px; -webkit-appearance:none; appearance:none; text-align:center; text-align-last:center; }
   @keyframes up { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
@@ -166,7 +171,7 @@
 <div id="sa"></div>
 
 <div id="stage">
-  <video id="v" playsinline webkit-playsinline preload="auto"></video>
+  <video id="v" playsinline webkit-playsinline preload="auto" autopictureinpicture></video>
   <div id="gesture"></div>
 
   <div id="rippleU" class="ripple"><b>«</b></div>
@@ -192,6 +197,7 @@
       <button class="ib q" id="qRate">1x</button>
       <button class="ib q" id="qHold">長押し 2x</button>
       <button class="ib q" id="qSkip">10秒</button>
+      <button class="ib" id="pipBtn" aria-label="ピクチャーインピクチャー" style="display:none"><svg viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor"/></svg></button>
       <button class="ib" id="chapBtn" aria-label="チャプター"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="13" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/></svg></button>
       <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
       <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -199,7 +205,7 @@
     </div>
   </div>
 
-  <div id="chap"><div id="chapPanel"><select id="chapSel" aria-label="チャプターの間隔"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select><div id="chapGrid"></div></div></div>
+  <div id="chap"><div id="chapPanel"><div id="chapSide"><select id="chapSel" aria-label="チャプターの間隔"><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button></div><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
@@ -274,7 +280,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-12';
+  const APP_VERSION = '2026.11.13-13';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -478,7 +484,7 @@
     if (curId && curId !== id) savePos();
     curId = id; curBlob = blob; needCover = true; coverTries = 0; coverNext = 1; pendingSeek = null; errRetry = 0;
     startThumbs(true);
-    chapBuiltFor = null; closeChap();
+    chapBuiltFor = null; chapAnchor = 0; closeChap();
     setSrc(blob);
     $('home').style.display = 'none';
     $('sheet').classList.remove('open');
@@ -503,6 +509,21 @@
   }
   $('reloadBtn').onclick = () => { $('sheet').classList.remove('open'); reloadVideo(); };
   $('chapBtn').onclick = () => openChap();
+  // ピクチャーインピクチャー（標準API、なければiOSの独自API）
+  const pipStd = !!(document.pictureInPictureEnabled && v.requestPictureInPicture);
+  const pipWk = !pipStd && typeof v.webkitSupportsPresentationMode === 'function' && v.webkitSupportsPresentationMode('picture-in-picture');
+  if (pipStd || pipWk) $('pipBtn').style.display = '';
+  const inPip = () => pipStd ? document.pictureInPictureElement === v : v.webkitPresentationMode === 'picture-in-picture';
+  $('pipBtn').onclick = async () => {
+    try {
+      if (inPip()) { pipStd ? await document.exitPictureInPicture() : v.webkitSetPresentationMode('inline'); }
+      else {
+        if (v.paused) await v.play().catch(()=>{});
+        pipStd ? await v.requestPictureInPicture() : v.webkitSetPresentationMode('picture-in-picture');
+      }
+    } catch(e) { chip('ピクチャーインピクチャーを開けへんかった', '', 1800); }
+    keepUI();
+  };
   $('prevBtn').onclick = () => { stepVideo(-1); keepUI(); };
   $('nextBtn').onclick = () => { stepVideo(1); keepUI(); };
   function goHome(){
@@ -831,15 +852,17 @@
   let chapOpen = false, chapBuiltFor = null, chapObs = null, chapItems = [];
   const CHAP_STEPS = [10, 30, 60, 120, 180, 300, 600, 1800];
   const stepLabel = st => st < 60 ? st + '秒' : st / 60 + '分';
+  // 起点（chapAnchor）を基準に、前後へ間隔ごとにサムネを並べる。初期値は0秒
+  let chapAnchor = 0;
   function buildChap(){
-    const key = curId + '_' + opt.chap + '_' + Math.round(v.duration || 0);
-    $('chapSel').value = opt.chap;
+    const step = opt.chap, dur = v.duration || 0, off = ((Math.round(chapAnchor) % step) + step) % step;
+    const key = curId + '_' + step + '_' + off + '_' + Math.round(dur);
+    $('chapSel').value = step;
     if (chapBuiltFor === key) return;
     chapBuiltFor = key;
     const grid = $('chapGrid'); grid.innerHTML = ''; chapItems = [];
     chapQueue = [];
     if (chapObs) chapObs.disconnect();
-    const step = opt.chap, n = Math.max(1, Math.ceil((v.duration || 0) / step));
     chapObs = 'IntersectionObserver' in window ? new IntersectionObserver(ents => {
       for (const en of ents) if (en.isIntersecting) {
         const it = chapItems[en.target.dataset.i];
@@ -847,23 +870,31 @@
       }
       thumbLoop();
     }, { root:grid, rootMargin:'0px 300px' }) : null;
-    for (let i = 0; i < n; i++) {
-      const t = Math.min(i * step + (i === 0 ? 0.5 : 0), Math.max(0, (v.duration || 0) - 0.5));
+    const starts = [];
+    if (off > 0) starts.push(0);                       // 起点をずらしたときも頭（0秒）は残す
+    for (let t = off; t < Math.max(dur, 1); t += step) starts.push(t);
+    starts.forEach((start, i) => {
+      const t = Math.min(start + (start === 0 ? 0.5 : 0), Math.max(0, dur - 0.5));
       const el = document.createElement('div'); el.className = 'ch'; el.dataset.i = i;
-      el.innerHTML = `<canvas width="160" height="90"></canvas><span>${fmt(i * step)}</span>`;
-      const it = { t, start:i * step, cv: el.querySelector('canvas'), el, done:false, queued:false };
+      el.innerHTML = `<canvas width="160" height="90"></canvas><span>${fmt(start)}</span>`;
+      const it = { t, start, cv: el.querySelector('canvas'), el, done:false, queued:false };
       const k = nearestPre(t, step / 2);
       if (k) it.cv.getContext('2d').drawImage(k, 0, 0, it.cv.width, it.cv.height);
       chapItems.push(it); grid.appendChild(el);
       if (chapObs) chapObs.observe(el); else { it.queued = true; chapQueue.push(it); }
-    }
+    });
+  }
+  function curChapIndex(){
+    let idx = 0;
+    for (let i = 0; i < chapItems.length; i++) { if (chapItems[i].start <= v.currentTime + 0.3) idx = i; else break; }
+    return idx;
   }
   function markChapCur(){
-    const i = Math.floor(v.currentTime / opt.chap);
+    const i = curChapIndex();
     chapItems.forEach((it, j) => it.el.classList.toggle('cur', j === i));
   }
   function centerChapCur(){
-    const cur = chapItems[Math.floor(v.currentTime / opt.chap)], gr = $('chapGrid');
+    const cur = chapItems[curChapIndex()], gr = $('chapGrid');
     if (cur) gr.scrollLeft = cur.el.offsetLeft - gr.clientWidth / 2 + cur.el.offsetWidth / 2;
   }
   // チャプターに飛ぶ：キーフレームに素早く飛んで、止まってたら再生
@@ -920,7 +951,13 @@
     panel.style.transform = '';
     if (!cs.dir) {
       const item = cs.target.closest && cs.target.closest('.ch');
-      if (item) jumpTo(chapItems[item.dataset.i].start);
+      const sync = cs.target.closest && cs.target.closest('#chapSync');
+      if (sync) {
+        chapAnchor = v.currentTime;
+        buildChap(); markChapCur(); centerChapCur(); thumbLoop();
+        sync.classList.remove('spin'); void sync.offsetWidth; sync.classList.add('spin');
+        chip('起点 ' + fmt(chapAnchor), 'チャプターを今の位置から並べ直したで', 1200);
+      } else if (item) jumpTo(chapItems[item.dataset.i].start);
     } else if (cs.dir === 'v' && dy > 40) closeChap();
     else if (cs.dir === 'h' && cs.inGrid) {
       let vel = performance.now() - cs.lt > 80 ? 0 : -chapVel; // 指を止めてから離したら滑らせへん
