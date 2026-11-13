@@ -88,15 +88,21 @@
   #bar.pv #preview { display:block; }
 
   /* チャプター一覧 */
-  #chap { position:absolute; inset:0; z-index:6; background:rgba(0,0,0,.3); display:none; }
+  #chap { position:absolute; inset:0; z-index:6; display:none; pointer-events:none; }
   #chap.open { display:block; }
   #chapPanel { position:absolute; left:0; right:0; bottom:0;
-    background:rgba(18,18,20,.95); border-radius:16px 16px 0 0; padding:10px 12px 16px; transform:translateY(0); animation:up .18s ease-out; }
+    background:rgba(12,12,14,.45); border-radius:14px 14px 0 0; padding:8px 10px 8px; pointer-events:auto; touch-action:none; animation:up .18s ease-out; }
+  .chapHint { font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap; }
+  #chap { container-type:inline-size; }
+  @container (max-width:560px) { .chapHint { display:none; } #chapSteps button { padding:5px 6px; font-size:11.5px; } }
   @keyframes up { from { transform:translateY(40px); opacity:0; } to { transform:none; opacity:1; } }
-  #chapHead { font-size:13px; color:#aaa; padding:2px 2px 10px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  #chapSel { background:#2c2c2e; color:#fff; border:0; border-radius:8px; padding:6px 10px; font-size:14px; }
-  #chapGrid { display:flex; gap:8px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; padding-bottom:4px; }
-  .ch { position:relative; flex:0 0 auto; width:min(38vw, 170px); scroll-snap-align:center; border-radius:8px; overflow:hidden; background:#000; border:2px solid transparent; }
+  #chapHead { font-size:13px; color:#aaa; padding:0 0 7px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  #chapSteps { display:flex; gap:4px; flex-wrap:nowrap; overflow:hidden; }
+  #chapSteps button { border:0; background:rgba(255,255,255,.1); color:#ccc; font-size:12px; padding:5px 8px; border-radius:7px; white-space:nowrap; }
+  #chapSteps button.on { background:rgba(255,255,255,.85); color:#000; font-weight:700; }
+  #chapGrid { display:flex; gap:6px; overflow:hidden; touch-action:none; padding-bottom:2px; }
+  #stage.chapOn #chip { bottom:calc(var(--chapH, 130px) + 12px); }
+  .ch { position:relative; flex:0 0 auto; width:min(30vw, 124px); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
   .ch.cur { border-color:var(--accent); }
   .ch canvas { display:block; width:100%; aspect-ratio:16/9; background:#111; }
   .ch span { position:absolute; left:4px; bottom:4px; font-size:11px; font-weight:700; background:rgba(0,0,0,.75); padding:1px 6px; border-radius:5px; font-variant-numeric:tabular-nums; }
@@ -193,7 +199,7 @@
     </div>
   </div>
 
-  <div id="chap"><div id="chapPanel"><div id="chapHead"><span id="chapTitle">チャプター</span><select id="chapSel"><option value="10">10秒ごと</option><option value="30">30秒ごと</option><option value="60">1分ごと</option><option value="120">2分ごと</option><option value="180">3分ごと</option><option value="300">5分ごと</option><option value="600">10分ごと</option><option value="1800">30分ごと</option></select></div><div id="chapGrid"></div></div></div>
+  <div id="chap"><div id="chapPanel"><div id="chapHead"><div id="chapSteps"></div><span class="chapHint">下にスワイプで閉じる</span></div><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
@@ -268,7 +274,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-10';
+  const APP_VERSION = '2026.11.13-11';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -609,7 +615,9 @@
   // ================= サムネイル =================
   // 開いた直後に全体のサムネを裏で120枚作っとく＋スワイプ中はその位置をピンポイントで取りに行く
   const PRE_N = 120;
-  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null, chapQueue = [];
+  let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null, chapQueue = [], mainBusyUntil = 0;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  v.addEventListener('seeking', () => { mainBusyUntil = Math.max(mainBusyUntil, Date.now() + 1200); });
   let lastDrawnT = -1e9;
   function sizeCanvas(){
     const src = v.videoWidth ? v : tv;
@@ -646,6 +654,10 @@
       else if (preIdx < PRE_N && tv.duration) { t = (preIdx + 0.5) * tv.duration / PRE_N; kind = 'pre'; }
       else break;
       if (kind === 'chap' && item.done) continue;
+      // 本編がシーク中・直後は待つ（デコーダの取り合いで本編の再開や音が遅れるのを防ぐ）
+      while (my === gen && (v.seeking || Date.now() < mainBusyUntil) && kind !== 'live') await sleep(120);
+      if (my !== gen) return;
+      if (kind === 'pre') await sleep(60); // 先読みはゆっくり
       const ok = await seekTv(t);
       if (my !== gen) return;
       if (kind === 'pre') preIdx++;
@@ -817,31 +829,32 @@
 
   // ================= チャプター =================
   let chapOpen = false, chapBuiltFor = null, chapObs = null, chapItems = [];
+  const CHAP_STEPS = [10, 30, 60, 120, 180, 300, 600, 1800];
+  const stepLabel = st => st < 60 ? st + '秒' : st / 60 + '分';
+  $('chapSteps').innerHTML = CHAP_STEPS.map(st => `<button data-chap="${st}">${stepLabel(st)}</button>`).join('');
   function buildChap(){
     const key = curId + '_' + opt.chap + '_' + Math.round(v.duration || 0);
+    document.querySelectorAll('#chapSteps button').forEach(b => b.classList.toggle('on', Number(b.dataset.chap) === opt.chap));
     if (chapBuiltFor === key) return;
     chapBuiltFor = key;
     const grid = $('chapGrid'); grid.innerHTML = ''; chapItems = [];
     chapQueue = [];
     if (chapObs) chapObs.disconnect();
     const step = opt.chap, n = Math.max(1, Math.ceil((v.duration || 0) / step));
-    $('chapTitle').textContent = `チャプター（${n}個）・外をタップで閉じる`;
-    $('chapSel').value = step;
     chapObs = 'IntersectionObserver' in window ? new IntersectionObserver(ents => {
       for (const en of ents) if (en.isIntersecting) {
         const it = chapItems[en.target.dataset.i];
         if (it && !it.done && !it.queued) { it.queued = true; chapQueue.push(it); }
       }
       thumbLoop();
-    }, { root:$('chapGrid'), rootMargin:'0px 300px' }) : null;
+    }, { root:grid, rootMargin:'0px 300px' }) : null;
     for (let i = 0; i < n; i++) {
       const t = Math.min(i * step + (i === 0 ? 0.5 : 0), Math.max(0, (v.duration || 0) - 0.5));
       const el = document.createElement('div'); el.className = 'ch'; el.dataset.i = i;
-      el.innerHTML = `<canvas width="192" height="108"></canvas><span>${fmt(i * step)}</span>`;
-      const it = { t, cv: el.querySelector('canvas'), el, done:false, queued:false };
-      const k = nearestPre(t, step / 2); // 先に作ってあるサムネで仮表示
+      el.innerHTML = `<canvas width="160" height="90"></canvas><span>${fmt(i * step)}</span>`;
+      const it = { t, start:i * step, cv: el.querySelector('canvas'), el, done:false, queued:false };
+      const k = nearestPre(t, step / 2);
       if (k) it.cv.getContext('2d').drawImage(k, 0, 0, it.cv.width, it.cv.height);
-      el.addEventListener('click', e => { e.stopPropagation(); v.currentTime = i * step; markChapCur(); });
       chapItems.push(it); grid.appendChild(el);
       if (chapObs) chapObs.observe(el); else { it.queued = true; chapQueue.push(it); }
     }
@@ -850,25 +863,80 @@
     const i = Math.floor(v.currentTime / opt.chap);
     chapItems.forEach((it, j) => it.el.classList.toggle('cur', j === i));
   }
+  function centerChapCur(){
+    const cur = chapItems[Math.floor(v.currentTime / opt.chap)], gr = $('chapGrid');
+    if (cur) gr.scrollLeft = cur.el.offsetLeft - gr.clientWidth / 2 + cur.el.offsetWidth / 2;
+  }
+  // チャプターに飛ぶ：キーフレームに素早く飛んで、止まってたら再生
+  function jumpTo(t){
+    mainBusyUntil = Date.now() + 1500; // 裏のサムネ作りをいったん止めて、本編の読み込みを優先
+    if (v.fastSeek) v.fastSeek(t); else v.currentTime = t;
+    if (v.paused) v.play().catch(()=>{});
+    markChapCur();
+  }
   function openChap(){
     if (!v.duration || chapOpen) return;
     chapOpen = true; hideUI();
+    stage.classList.add('chapOn');
     $('chap').classList.add('open');
-    buildChap(); markChapCur();
-    const cur = chapItems[Math.floor(v.currentTime / opt.chap)];
-    if (cur) { const gr = $('chapGrid'); gr.scrollLeft = cur.el.offsetLeft - gr.clientWidth / 2 + cur.el.offsetWidth / 2; }
+    buildChap(); markChapCur(); centerChapCur();
+    stage.style.setProperty('--chapH', panel.offsetHeight + 'px');
     thumbLoop();
   }
-  function closeChap(){ chapOpen = false; $('chap').classList.remove('open'); chapQueue = []; chapItems.forEach(it => it.queued = it.done); }
-  $('chap').addEventListener('click', e => { if (e.target.id === 'chap') closeChap(); });
-  $('chapSel').addEventListener('change', e => {
-    setOpt('chap', Number(e.target.value));
-    buildChap(); markChapCur();
-    const cur = chapItems[Math.floor(v.currentTime / opt.chap)], gr = $('chapGrid');
-    if (cur) gr.scrollLeft = cur.el.offsetLeft - gr.clientWidth / 2 + cur.el.offsetWidth / 2;
-    thumbLoop();
-  });
-  $('chap').addEventListener('touchstart', e => { if (e.target.id === 'chap') { e.preventDefault(); closeChap(); } }, {passive:false});
+  function closeChap(){
+    if (!chapOpen) return;
+    chapOpen = false; stage.classList.remove('chapOn'); $('chap').classList.remove('open');
+    chapQueue = []; chapItems.forEach(it => it.queued = it.done); cancelAnimationFrame(chapRaf);
+  }
+  // チャプター欄の操作（回転してても使えるように自前で処理）：横＝慣性つきスクロール、下＝閉じる、タップ＝選択
+  let cs = null, chapVel = 0, chapRaf = 0;
+  const panel = $('chapPanel'), grid = $('chapGrid');
+  panel.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    cancelAnimationFrame(chapRaf);
+    const t = e.touches[0], p = toLocal(t.clientX, t.clientY);
+    cs = { x:p.x, y:p.y, sl:grid.scrollLeft, lx:p.x, lt:performance.now(), dir:null, target:e.target, inGrid: grid.contains(e.target) };
+    chapVel = 0;
+  }, {passive:false});
+  panel.addEventListener('touchmove', e => {
+    if (!cs) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = e.touches[0], p = toLocal(t.clientX, t.clientY), dx = p.x - cs.x, dy = p.y - cs.y;
+    if (!cs.dir && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) cs.dir = Math.abs(dy) > Math.abs(dx) * 1.3 ? 'v' : 'h';
+    if (cs.dir === 'h' && cs.inGrid) {
+      grid.scrollLeft = cs.sl - dx;
+      const now = performance.now(), dt = Math.max(8, now - cs.lt);
+      chapVel = chapVel * 0.2 + ((p.x - cs.lx) / dt) * 0.8;
+      cs.lx = p.x; cs.lt = now;
+    } else if (cs.dir === 'v' && dy > 0) {
+      panel.style.transform = `translateY(${dy}px)`;
+    }
+  }, {passive:false});
+  panel.addEventListener('touchend', e => {
+    if (!cs) return;
+    e.preventDefault(); e.stopPropagation();
+    const ch = e.changedTouches[0], p = toLocal(ch.clientX, ch.clientY), dy = p.y - cs.y;
+    panel.style.transform = '';
+    if (!cs.dir) {
+      const stepBtn = cs.target.closest && cs.target.closest('button[data-chap]');
+      const item = cs.target.closest && cs.target.closest('.ch');
+      if (stepBtn) {
+        setOpt('chap', Number(stepBtn.dataset.chap));
+        buildChap(); markChapCur(); centerChapCur(); thumbLoop();
+      } else if (item) jumpTo(chapItems[item.dataset.i].start);
+    } else if (cs.dir === 'v' && dy > 40) closeChap();
+    else if (cs.dir === 'h' && cs.inGrid) {
+      let vel = performance.now() - cs.lt > 80 ? 0 : -chapVel; // 指を止めてから離したら滑らせへん
+      const glide = () => {
+        if (Math.abs(vel) < 0.02) return;
+        grid.scrollLeft += vel * 16; vel *= 0.95;
+        chapRaf = requestAnimationFrame(glide);
+      };
+      chapRaf = requestAnimationFrame(glide);
+    }
+    cs = null;
+  }, {passive:false});
+  panel.addEventListener('touchcancel', () => { cs = null; panel.style.transform = ''; });
 
   // ================= 回転＆セーフエリア =================
   let rot = store.get('rot', 0);
@@ -974,8 +1042,9 @@
     const dx = p.x - s0.x, dy = p.y - s0.y, ax = Math.abs(dx), ay = Math.abs(dy);
     if (mode === null) {
       if (ax > 10 || ay > 10) clearTimeout(holdTimer);
-      if (nearCenter(s0, CENTER_R, CENTER_R + 10) && dy > 16 && ay > ax * 1.8) mode = 'close';        // 中央を下へ＝閉じる
-      else if (s0.y > p.h * 0.65 && dy < -30 && ay > ax * 1.2) { mode = 'chap'; openChap(); }         // 下の方から上へ＝チャプター
+      if (chapOpen && dy > 18 && ay > ax * 1.5) { mode = 'chapclose'; closeChap(); }                    // チャプター表示中に下へ＝チャプターを閉じる
+      else if (nearCenter(s0, CENTER_R, CENTER_R + 10) && dy > 16 && ay > ax * 1.8) mode = 'close';   // 中央を下へ＝閉じる
+      else if (!uiShown && !chapOpen && s0.y > p.h * 0.65 && dy < -30 && ay > ax * 1.2) { mode = 'chap'; openChap(); } // UI非表示時、下の方から上へ＝チャプター
       else if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }           // 左右＝早送り・巻き戻し
       else if (ay > 26 && ay > ax * 2.2) { mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0; } // 上下＝明るさ・音量
       else return;
@@ -1058,6 +1127,7 @@
       return;
     }
     lastTap = now; lastZone = zone; uiBeforeTap = uiShown;
+    if (chapOpen) return;
     uiShown ? hideUI() : showUI();
   }
   function doSkip(zone){
@@ -1065,6 +1135,7 @@
     multiZone = zone;
     const sign = zone === 'R' ? -1 : 1;
     multiSkip += opt.skip;
+    mainBusyUntil = Date.now() + 1500;
     v.currentTime = clamp(v.currentTime + sign * opt.skip, 0, v.duration || 0);
     const el = zone === 'R' ? $('rippleU') : $('rippleD');
     (zone === 'R' ? $('rippleD') : $('rippleU')).classList.remove('show');
