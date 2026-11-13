@@ -37,7 +37,7 @@
     display:flex; align-items:center; justify-content:center; font-size:22px; }
   .show { opacity:1 !important; }
 
-  #chip { position:absolute; right:14px; bottom:108px; z-index:5; pointer-events:none;
+  #chip { position:absolute; right:14px; bottom:64px; z-index:5; pointer-events:none;
     background:rgba(0,0,0,.72); border-radius:12px; padding:8px 13px; text-align:right;
     font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; }
   #chip small { display:block; font-size:12px; font-weight:500; color:#ccc; margin-top:2px; }
@@ -51,8 +51,15 @@
     background:rgba(0,0,0,.22); color:rgba(255,255,255,.55); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   #closeBtn svg { width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 
+  #quick { position:absolute; left:14px; top:74px; z-index:4; display:flex; flex-direction:column; align-items:flex-start; gap:8px; transition:opacity var(--fade); }
+  #quick .q { margin:0; background:rgba(0,0,0,.3); }
+  .navb { position:absolute; top:50%; width:52px; height:52px; margin-top:-26px; z-index:4; border:0; border-radius:50%;
+    background:rgba(0,0,0,.35); color:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
+  .navb svg { width:22px; height:22px; fill:currentColor; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  #prevBtn { left:calc(50% - 120px); }
+  #nextBtn { left:calc(50% + 68px); }
   #controls { position:absolute; left:0; right:0; bottom:0; z-index:4; pointer-events:none;
-    padding:30px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
+    padding:24px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
   #controls button, #controls #bar { pointer-events:auto; }
   .hidden { opacity:0 !important; pointer-events:none !important; }
   .hidden button, .hidden #bar { pointer-events:none !important; }
@@ -157,16 +164,15 @@
   <div id="center" class="hidden"></div>
   <button id="closeBtn" class="hidden" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 
+  <div id="quick" class="hidden">
+    <button class="ib q" id="qRate">1x</button>
+    <button class="ib q" id="qHold">長押し 2x</button>
+    <button class="ib q" id="qSkip">10秒</button>
+  </div>
+  <button id="prevBtn" class="navb hidden" aria-label="前の動画"><svg viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5L9 12l10 7z"/></svg></button>
+  <button id="nextBtn" class="navb hidden" aria-label="次の動画"><svg viewBox="0 0 24 24"><path d="M18 5v14"/><path d="M5 5l10 7-10 7z"/></svg></button>
+
   <div id="controls" class="hidden">
-    <div class="row">
-      <button class="ib q" id="qRate">1x</button>
-      <button class="ib q" id="qHold">長押し 2x</button>
-      <button class="ib q" id="qSkip">10秒</button>
-      <span class="sp"></span>
-      <button class="ib" id="reloadBtn" aria-label="再読み込み"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
-      <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
-      <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-    </div>
     <div class="row">
       <span class="time" id="cur">0:00</span>
       <div id="bar">
@@ -175,6 +181,9 @@
         <div id="preview"><canvas id="cv" width="176" height="99"></canvas><span id="pvTime">0:00</span></div>
       </div>
       <span class="time" id="dur">0:00</span>
+      <button class="ib" id="chapBtn" aria-label="チャプター"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="13" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/></svg></button>
+      <button class="ib" id="rotBtn" aria-label="回転"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M2 14a8 8 0 0 0 5 6M22 10a8 8 0 0 0-5-6"/></svg></button>
+      <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
   </div>
 
@@ -186,7 +195,7 @@
   <p class="sub">長押し＝倍速 ／ ダブルタップ＝スキップ・巻き戻し<br>
   左右スワイプ＝早送り・巻き戻し（速く動かすほど大きく飛ぶ）<br>
   左側の上下スワイプ＝明るさ ／ 右側の上下スワイプ＝音量<br>
-  中央を下にスワイプ＝閉じる ／ 下から上にスワイプ＝チャプター</p>
+  中央を下にスワイプ＝閉じる ／ 画面の下のほうから上にスワイプ＝チャプター</p>
   <button class="btn" id="openBtn">＋ 動画を選ぶ</button>
   <input type="file" id="file" accept="video/*" hidden>
   <h2>最近の動画（タップですぐ再生）</h2>
@@ -200,6 +209,7 @@
 <div id="sheet">
   <div class="panel">
     <h2>設定</h2>
+    <div id="reloadRow" style="display:none"><button class="btn ghost" id="reloadBtn">↻ 今の動画を読み込み直す（固まったとき用）</button></div>
     <h3>再生</h3>
     <div class="set"><span>通常の再生速度</span>
       <select id="optRate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2</option><option>2.5</option><option>3</option></select></div>
@@ -252,7 +262,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-8';
+  const APP_VERSION = '2026.11.13-9';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -334,6 +344,8 @@
   const blobDel = id => tx('blobs', 'readwrite', s => s.delete(id)).catch(() => {});
   async function metaPatch(id, patch){ const m = await metaGet(id); if (m) await metaPut(Object.assign(m, patch)); }
   async function removeVideo(id){ await metaDel(id); blobDel(id); store.del('pos_' + id); }
+  // 一覧と前後の移動は「追加した順」で固定（再生しても並びが変わらへんように）。あふれた分は最近見てない順に消す
+  const byAdded = (a, b) => (b.added || b.at) - (a.added || a.at);
   async function trimRecent(){
     const all = (await metaAll()).sort((a,b) => b.at - a.at);
     for (const m of all.slice(opt.keep)) await removeVideo(m.id);
@@ -346,7 +358,7 @@
     if (opt.maxGB > 0 && file.size > opt.maxGB * 1e9) return;
     const old = await metaGet(id);
     if (old && old.saved) { metaPatch(id, { at:Date.now() }); return; }
-    await metaPut({ id, name:file.name, size:file.size, cover: (old && old.cover) || (coverMem.id === id ? coverMem.data : null), at:Date.now(), saved:false });
+    await metaPut({ id, name:file.name, size:file.size, cover: (old && old.cover) || (coverMem.id === id ? coverMem.data : null), at:Date.now(), added:(old && old.added) || Date.now(), saved:false });
     await trimRecent();
     saving.add(id);
     try {
@@ -365,7 +377,7 @@
   async function renderRecent(){
     const seq = ++renderSeq, box = $('recent');
     if (opt.keep === 0) { box.innerHTML = '<div class="empty">設定で「保存しない」になってるで</div>'; $('storage').textContent=''; return; }
-    const all = (await metaAll()).sort((a,b) => b.at - a.at);
+    const all = (await metaAll()).sort(byAdded);
     if (seq !== renderSeq) return;
     if (!all.length) { box.innerHTML = '<div class="empty">まだないで。一回開いた動画がここに並ぶ</div>'; $('storage').textContent=''; return; }
     box.innerHTML = '';
@@ -430,6 +442,7 @@
     const box = $('recent'), d = document.createElement('div');
     d.className = 'empty'; d.style.color = '#ff8a8a'; d.textContent = text;
     box.prepend(d); setTimeout(() => d.remove(), 4000);
+    if ($('home').style.display === 'none') chip(text, '', 2500);
   }
   function setSrc(blob){
     if (url) URL.revokeObjectURL(url);
@@ -438,7 +451,19 @@
   }
   function tryPlay(){ v.play().catch(() => showUI()); }
   function primeTv(){ tv.play().then(() => tv.pause()).catch(()=>{}); }
+  // 前後の動画へ（最近の動画の並び順で）
+  async function stepVideo(dir){
+    const list = (await metaAll()).filter(m => m.saved).sort(byAdded);
+    if (!list.length) { chip('最近の動画がないで', '', 1200); return; }
+    const i = list.findIndex(m => m.id === curId);
+    const j = i < 0 ? (dir > 0 ? 0 : list.length - 1) : i + dir;
+    if (j < 0) { chip('一番新しい動画やで', '', 1200); return; }
+    if (j >= list.length) { chip('一番古い動画やで', '', 1200); return; }
+    chip(dir > 0 ? '次の動画 ▶︎' : '◀︎ 前の動画', list[j].name, 1200);
+    await openRecord(list[j]);
+  }
   function play(blob, id){
+    if (curId && curId !== id) savePos();
     curId = id; curBlob = blob; needCover = true; coverTries = 0; coverNext = 1; pendingSeek = null; errRetry = 0;
     startThumbs(true);
     chapBuiltFor = null; closeChap();
@@ -464,7 +489,10 @@
     primeTv();
     chip('↻ 再読み込み', fmt(t) + ' から再開', 1500);
   }
-  $('reloadBtn').onclick = () => { reloadVideo(); keepUI(); };
+  $('reloadBtn').onclick = () => { $('sheet').classList.remove('open'); reloadVideo(); };
+  $('chapBtn').onclick = () => openChap();
+  $('prevBtn').onclick = () => { stepVideo(-1); keepUI(); };
+  $('nextBtn').onclick = () => { stepVideo(1); keepUI(); };
   function goHome(){
     savePos();
     v.pause();
@@ -715,7 +743,7 @@
   $('qSkip').onclick = () => { setOpt('skip', cycle([5,10,15,30,60], opt.skip)); chip(opt.skip + '秒', 'ダブルタップのスキップ', 900); keepUI(); };
 
   // ================= 設定シート =================
-  const openSheet = () => { $('sheet').classList.add('open'); drawZoneEditor(); };
+  const openSheet = () => { $('reloadRow').style.display = curBlob ? 'block' : 'none'; $('sheet').classList.add('open'); drawZoneEditor(); };
   $('setBtn').onclick = openSheet; $('setBtn2').onclick = openSheet;
   $('closeSheet').onclick = () => $('sheet').classList.remove('open');
   $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('sheet').classList.remove('open'); });
@@ -853,7 +881,7 @@
 
   // ================= UI表示 =================
   let uiTimer = null, uiShown = false;
-  const UI_IDS = ['controls','center','closeBtn'];
+  const UI_IDS = ['controls','center','closeBtn','quick','prevBtn','nextBtn'];
   function showUI(){ uiShown = true; UI_IDS.forEach(id => $(id).classList.remove('hidden')); keepUI(); }
   function hideUI(){ uiShown = false; clearTimeout(uiTimer); UI_IDS.forEach(id => $(id).classList.add('hidden')); }
   function keepUI(){ clearTimeout(uiTimer); uiTimer = setTimeout(() => { if (!v.paused && !previewing) hideUI(); }, 2500); }
@@ -925,7 +953,7 @@
     if (mode === null) {
       if (ax > 10 || ay > 10) clearTimeout(holdTimer);
       if (nearCenter(s0, CENTER_R, CENTER_R + 10) && dy > 16 && ay > ax * 1.8) mode = 'close';        // 中央を下へ＝閉じる
-      else if (s0.y > p.h * 0.8 && dy < -24 && ay > ax * 1.5) { mode = 'chap'; openChap(); }          // 下の方から上へ＝チャプター
+      else if (s0.y > p.h * 0.65 && dy < -30 && ay > ax * 1.2) { mode = 'chap'; openChap(); }         // 下の方から上へ＝チャプター
       else if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }           // 左右＝早送り・巻き戻し
       else if (ay > 26 && ay > ax * 2.2) { mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0; } // 上下＝明るさ・音量
       else return;
