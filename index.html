@@ -88,7 +88,10 @@
   .card .prog { height:3px; background:#333; }
   .card .prog i { display:block; height:100%; background:var(--accent); }
   .card .name { font-size:12px; padding:8px 10px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#ddd; }
-  .card .del { position:absolute; top:6px; right:6px; width:28px; height:28px; border-radius:50%; border:0; background:rgba(0,0,0,.65); color:#fff; font-size:14px; }
+  .card .del { position:absolute; top:0; right:0; width:46px; height:46px; border:0; background:none; padding:0; z-index:1; }
+  .card .del span { position:absolute; top:7px; right:7px; width:28px; height:28px; border-radius:50%; background:rgba(0,0,0,.7);
+    color:#fff; font-size:14px; line-height:28px; text-align:center; pointer-events:none; }
+  .card .ph { font-size:13px; color:#666; }
   .empty { color:#777; font-size:13px; line-height:1.7; }
   #storage { color:#666; font-size:11px; margin-top:12px; }
   .ver { color:#666; font-size:11px; margin-top:8px; text-align:center; }
@@ -163,6 +166,8 @@
       <select id="optSens"><option value="20">ひかえめ</option><option value="12" selected>ふつう</option><option value="7">敏感</option></select></div>
     <div class="set"><span>最近の動画を保存する数</span>
       <select id="optKeep"><option value="0">保存しない</option><option value="3">3本</option><option value="5" selected>5本</option><option value="10">10本</option><option value="20">20本</option></select></div>
+    <div class="set"><span>保存する動画の上限サイズ</span>
+      <select id="optMax"><option value="1">1GB</option><option value="3" selected>3GB</option><option value="6">6GB</option><option value="0">上限なし</option></select></div>
     <div class="set"><span>再生位置を覚えとく</span><input type="checkbox" id="optResume" checked></div>
     <p class="help">・明るさは画面を暗くする／映像を明るくする疑似調整（iPhone本体の明るさは変わらへん）<br>
     ・時計とバッテリーを消したいときは、iPhoneの画面回転ロックを外して「縦」モードのまま本体を横にしてな<br>
@@ -181,7 +186,7 @@
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-6';
+  const APP_VERSION = '2026.11.13-7';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -198,13 +203,14 @@
   // ================= 設定 =================
   const store = {
     get(k, d){ try { const x = localStorage.getItem('gvp_'+k); return x === null ? d : JSON.parse(x); } catch(e){ return d; } },
-    set(k, val){ try { localStorage.setItem('gvp_'+k, JSON.stringify(val)); } catch(e){} }
+    set(k, val){ try { localStorage.setItem('gvp_'+k, JSON.stringify(val)); } catch(e){} },
+    del(k){ try { localStorage.removeItem('gvp_'+k); } catch(e){} }
   };
   const opt = {
     rate: store.get('rate', 1), hold: store.get('hold', 2), skip: store.get('skip', 10), sens: store.get('sens', 12),
-    live: store.get('live', false), resume: store.get('resume', true), keep: store.get('keep', 5)
+    resume: store.get('resume', true), keep: store.get('keep', 5), maxGB: store.get('maxGB', 3)
   };
-  for (const [id, k] of [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optKeep','keep']]) $(id).value = opt[k];
+  for (const [id, k] of [['optRate','rate'],['optHold','hold'],['optSkip','skip'],['optSens','sens'],['optKeep','keep'],['optMax','maxGB']]) $(id).value = opt[k];
   $('optResume').checked = opt.resume;
   const bindOpt = (id, key, num) => $(id).addEventListener('change', e => {
     opt[key] = e.target.type === 'checkbox' ? e.target.checked : (num ? Number(e.target.value) : e.target.value);
@@ -213,146 +219,249 @@
     if (key === 'keep') trimRecent().then(renderRecent);
   });
   bindOpt('optRate','rate',true); bindOpt('optHold','hold',true); bindOpt('optSkip','skip',true); bindOpt('optSens','sens',true);
-  bindOpt('optResume','resume'); bindOpt('optKeep','keep',true);
+  bindOpt('optResume','resume'); bindOpt('optKeep','keep',true); bindOpt('optMax','maxGB',true);
 
   // ================= 保存（IndexedDB） =================
+  // 一覧の情報(meta)と動画本体(blobs)を別々の箱に入れる。
+  // 同じ箱やと、でかい動画の書き込み中に一覧の読み込み・削除・ファイル選択が全部待たされて固まるため。
   let dbp = null;
   function db(){
     if (!dbp) dbp = new Promise((res, rej) => {
       try {
-        const r = indexedDB.open('gvp', 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('videos', { keyPath:'id' });
-        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        const r = indexedDB.open('gvp', 2);
+        r.onupgradeneeded = () => {
+          const d = r.result;
+          if (d.objectStoreNames.contains('videos')) d.deleteObjectStore('videos'); // 旧形式は破棄
+          if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath:'id' });
+          if (!d.objectStoreNames.contains('blobs')) d.createObjectStore('blobs', { keyPath:'id' });
+        };
+        r.onsuccess = () => { const d = r.result; d.onversionchange = () => d.close(); res(d); };
+        r.onerror = () => rej(r.error);
+        r.onblocked = () => rej(new Error('blocked'));
       } catch(e){ rej(e); }
-    });
+    }).catch(e => { dbp = null; throw e; });
     return dbp;
   }
-  async function tx(mode, fn){
+  async function tx(storeName, mode, fn){
     const d = await db();
     return new Promise((res, rej) => {
-      const t = d.transaction('videos', mode), s = t.objectStore('videos');
+      const t = d.transaction(storeName, mode), s = t.objectStore(storeName);
       let out; const r = fn(s); if (r) r.onsuccess = () => out = r.result;
-      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort'));
     });
   }
-  const getAll = () => tx('readonly', s => s.getAll()).catch(() => []);
-  const getRec = id => tx('readonly', s => s.get(id)).catch(() => null);
-  const putRec = rec => tx('readwrite', s => s.put(rec));
-  const delRec = id => tx('readwrite', s => s.delete(id)).catch(()=>{});
+  const metaAll = () => tx('meta', 'readonly', s => s.getAll()).catch(() => []);
+  const metaGet = id => tx('meta', 'readonly', s => s.get(id)).catch(() => null);
+  const metaPut = m => tx('meta', 'readwrite', s => s.put(m)).catch(() => {});
+  const metaDel = id => tx('meta', 'readwrite', s => s.delete(id)).catch(() => {});
+  const blobGet = id => tx('blobs', 'readonly', s => s.get(id)).then(r => r && r.blob).catch(() => null);
+  const blobPut = (id, blob) => tx('blobs', 'readwrite', s => s.put({ id, blob }));
+  const blobDel = id => tx('blobs', 'readwrite', s => s.delete(id)).catch(() => {});
+  async function metaPatch(id, patch){ const m = await metaGet(id); if (m) await metaPut(Object.assign(m, patch)); }
+  async function removeVideo(id){ await metaDel(id); blobDel(id); store.del('pos_' + id); }
   async function trimRecent(){
-    const all = (await getAll()).sort((a,b) => b.at - a.at);
-    for (const r of all.slice(opt.keep)) await delRec(r.id);
+    const all = (await metaAll()).sort((a,b) => b.at - a.at);
+    for (const m of all.slice(opt.keep)) await removeVideo(m.id);
   }
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
 
+  const saving = new Set(); // 保存中のid
+  async function saveVideo(file, id){
+    if (opt.keep === 0) return;
+    if (opt.maxGB > 0 && file.size > opt.maxGB * 1e9) return; // 大きすぎるのは保存しない（容量・メモリ対策）
+    const old = await metaGet(id);
+    if (old && old.saved) { metaPatch(id, { at:Date.now() }); return; }
+    await metaPut({ id, name:file.name, size:file.size, cover: (old && old.cover) || (coverMem.id === id ? coverMem.data : null), at:Date.now(), saved:false });
+    await trimRecent();
+    saving.add(id);
+    try {
+      await blobPut(id, file);
+      if (await metaGet(id)) await metaPatch(id, { saved:true }); // 保存中に消されてたら本体も消す
+      else blobDel(id);
+    } catch(e) {
+      metaDel(id);
+      chip('最近の動画に保存できへんかった', '容量が足りへんみたい', 2500);
+    }
+    saving.delete(id);
+    if ($('home').style.display !== 'none') renderRecent();
+  }
+
+  let renderSeq = 0;
   async function renderRecent(){
-    const box = $('recent');
+    const seq = ++renderSeq, box = $('recent');
     if (opt.keep === 0) { box.innerHTML = '<div class="empty">設定で「保存しない」になってるで</div>'; $('storage').textContent=''; return; }
-    const all = (await getAll()).sort((a,b) => b.at - a.at);
+    const all = (await metaAll()).sort((a,b) => b.at - a.at);
+    if (seq !== renderSeq) return;
     if (!all.length) { box.innerHTML = '<div class="empty">まだないで。一回開いた動画がここに並ぶ</div>'; $('storage').textContent=''; return; }
     box.innerHTML = '';
-    for (const r of all) {
-      const pos = store.get('pos_' + r.id, null);
+    for (const m of all) {
+      const pos = store.get('pos_' + m.id, null);
       const pct = pos && pos.d ? Math.min(100, pos.p / pos.d * 100) : 0;
       const el = document.createElement('div'); el.className = 'card';
-      el.innerHTML = `<div class="cover">${r.cover ? '' : '🎬'}</div><div class="prog"><i style="width:${pct}%"></i></div><div class="name"></div><button class="del">✕</button>`;
-      if (r.cover) el.querySelector('.cover').style.backgroundImage = `url(${r.cover})`;
-      el.querySelector('.name').textContent = r.name;
-      el.addEventListener('click', e => {
-        if (e.target.classList.contains('del')) { e.stopPropagation(); delRec(r.id).then(renderRecent); return; }
-        openRecord(r);
+      el.innerHTML = `<div class="cover"></div><div class="prog"><i style="width:${pct}%"></i></div><div class="name"></div><button class="del" aria-label="削除"><span>✕</span></button>`;
+      const cv = el.querySelector('.cover');
+      if (m.cover) cv.style.backgroundImage = `url(${m.cover})`;
+      else cv.innerHTML = `<span class="ph">${m.saved ? '🎬' : '保存中…'}</span>`;
+      el.querySelector('.name').textContent = m.name + (pos && pos.d ? `（${fmt(pos.d)}）` : '');
+      el.querySelector('.del').addEventListener('click', async e => {
+        e.stopPropagation(); e.preventDefault();
+        el.remove();
+        await removeVideo(m.id);
+        renderRecent();
       });
+      el.addEventListener('click', () => openRecord(m));
       box.appendChild(el);
     }
     try {
       if (navigator.storage && navigator.storage.estimate) {
         const est = await navigator.storage.estimate();
-        $('storage').textContent = `使用中 ${(est.usage/1e9).toFixed(2)}GB`;
+        if (seq === renderSeq) $('storage').textContent = `使用中 ${(est.usage/1e9).toFixed(2)}GB`;
       }
     } catch(e){}
   }
 
   // ================= 動画を開く =================
-  let curId = null, curBlob = null, url = null, needCover = false, pendingSeek = null;
+  let curId = null, curBlob = null, url = null, needCover = false, coverTries = 0, pendingSeek = null;
   const tv = document.createElement('video'); // サムネ用の裏プレイヤー（iPhoneはページ上に置かんとフレームを描かへん）
   tv.muted = true; tv.playsInline = true; tv.setAttribute('playsinline',''); tv.setAttribute('muted',''); tv.preload = 'auto';
   tv.style.cssText = 'position:fixed;left:0;top:0;width:4px;height:4px;opacity:0.01;pointer-events:none;z-index:-1;';
   document.body.appendChild(tv);
 
   $('openBtn').onclick = () => $('file').click();
-  $('file').addEventListener('change', async e => {
-    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  $('file').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
     const id = f.name + '_' + f.size + '_' + (f.lastModified || 0);
-    const existing = await getRec(id);
-    play(f, id, !(existing && existing.cover));
-    if (opt.keep > 0) {
-      try {
-        const cover = (existing && existing.cover) || (coverMem && coverMem.id === id ? coverMem.data : null);
-        await putRec({ id, name:f.name, size:f.size, blob:f, cover, at:Date.now() });
-        if (!cover && coverMem && coverMem.id === id) { const r = await getRec(id); if (r) await putRec(Object.assign(r, { cover:coverMem.data })); }
-        await trimRecent();
-      } catch(err) { chip('保存できへんかった', '容量が足りへんみたい', 2500); }
-    }
+    play(f, id); // 何も待たずにすぐ再生
+    metaGet(id).then(m => { if (m && m.cover && curId === id) needCover = false; });
+    saveVideo(f, id); // 保存は裏で
   });
-  function openRecord(r){
-    play(r.blob, r.id, !r.cover);
-    putRec(Object.assign({}, r, { at:Date.now() })).catch(()=>{});
+  let opening = false;
+  async function openRecord(m){
+    if (opening) return;
+    opening = true;
+    try {
+      if (!m.saved && !saving.has(m.id)) { await removeVideo(m.id); renderRecent(); return; }
+      if (saving.has(m.id)) { alertHome('まだ保存中やで。ちょっと待ってからもう一回押してな'); return; }
+      const blob = await blobGet(m.id);
+      if (!blob) { await removeVideo(m.id); renderRecent(); alertHome('この動画はiPhoneに消されてたみたい。もう一回選び直してな'); return; }
+      play(blob, m.id);
+      needCover = !m.cover;
+      metaPatch(m.id, { at:Date.now() });
+    } finally { opening = false; }
+  }
+  function alertHome(text){
+    const box = $('recent'), d = document.createElement('div');
+    d.className = 'empty'; d.style.color = '#ff8a8a'; d.textContent = text;
+    box.prepend(d); setTimeout(() => d.remove(), 4000);
   }
   function setSrc(blob){
     if (url) URL.revokeObjectURL(url);
     url = URL.createObjectURL(blob);
     v.src = url; tv.src = url;
   }
-  function play(blob, id, wantCover){
-    curId = id; curBlob = blob; needCover = wantCover; pendingSeek = null;
+  function tryPlay(){
+    v.play().catch(() => { showUI(); }); // 自動再生できへんときは中央の▶を出しとく
+  }
+  function primeTv(){ tv.play().then(() => tv.pause()).catch(()=>{}); } // iOSは裏プレイヤーも一回再生せなフレームを読まへんことがある
+  function play(blob, id){
+    curId = id; curBlob = blob; needCover = true; coverTries = 0; pendingSeek = null; errRetry = 0;
     startThumbs(true);
     setSrc(blob);
     $('home').style.display = 'none';
+    $('sheet').classList.remove('open');
     layout();
     v.playbackRate = opt.rate;
-    v.play().catch(()=>{});
-    tv.play().then(() => tv.pause()).catch(()=>{}); // iOSは裏プレイヤーも一回再生せなフレームを読まへんことがある
+    tryPlay();
+    primeTv();
     showUI();
   }
   function reloadVideo(){
     if (!curBlob) return;
-    const t = v.currentTime, wasPlaying = !v.paused;
+    const t = v.currentTime || pendingSeek || 0, wasPlaying = !v.paused;
     pendingSeek = t;
     startThumbs(false);
     setSrc(curBlob);
     v.load(); tv.load();
     v.playbackRate = opt.rate;
-    if (wasPlaying) v.play().catch(()=>{});
-    tv.play().then(() => tv.pause()).catch(()=>{});
+    if (wasPlaying) tryPlay();
+    primeTv();
     chip('↻ 再読み込み', fmt(t) + ' から再開', 1500);
   }
   $('reloadBtn').onclick = () => { reloadVideo(); keepUI(); };
-  function goHome(){ v.pause(); savePos(); $('home').style.display = 'block'; renderRecent(); }
+  // 閉じたら動画を手放してメモリを空ける
+  function goHome(){
+    savePos();
+    v.pause();
+    startThumbs(true);
+    try { tv.pause(); tv.removeAttribute('src'); tv.load(); } catch(e){}
+    try { v.removeAttribute('src'); v.load(); } catch(e){}
+    if (url) { URL.revokeObjectURL(url); url = null; }
+    curBlob = null; curId = null; previewing = false;
+    hideUI(); $('chip').classList.remove('show');
+    $('home').style.display = 'block';
+    renderRecent();
+  }
   $('closeBtn').onclick = goHome;
 
   v.addEventListener('loadedmetadata', () => {
-    if (pendingSeek !== null) { v.currentTime = pendingSeek; pendingSeek = null; }
+    if (pendingSeek !== null) { v.currentTime = Math.min(pendingSeek, v.duration || pendingSeek); pendingSeek = null; }
     else if (opt.resume && curId) {
       const p = store.get('pos_' + curId, null);
       if (p && p.p > 3 && p.p < v.duration - 3) { v.currentTime = p.p; chip('続きから再生', fmt(p.p) + ' / ' + fmt(v.duration), 1500); }
     }
     sizeCanvas();
+    updateBar();
   });
-  function savePos(){ if (opt.resume && curId && v.duration) store.set('pos_' + curId, { p:v.currentTime, d:v.duration }); }
-  // 最近の動画のサムネ：再生中の本編から1枚撮る
-  let coverMem = null; // {id, data} 保存が終わる前に撮れた場合用
-  function captureCover(){
-    if (!needCover || !curId || v.readyState < 2 || v.seeking || !v.videoWidth || v.currentTime < 1) return;
-    needCover = false;
+  function savePos(){ if (opt.resume && curId && v.duration && v.currentTime > 0) store.set('pos_' + curId, { p:v.currentTime, d:v.duration }); }
+
+  // ---- 真っ黒判定（iPhoneはHDR動画などで映像を描けず真っ黒になることがある） ----
+  function isBlank(c){
     try {
-      const k = document.createElement('canvas'); k.width = 320; k.height = 180;
-      const ctx = k.getContext('2d'), ar = v.videoWidth / v.videoHeight;
-      let w = 320, h = 320 / ar; if (h < 180) { h = 180; w = 180 * ar; }
-      ctx.drawImage(v, (320-w)/2, (180-h)/2, w, h);
-      const data = k.toDataURL('image/jpeg', 0.7), id = curId;
-      coverMem = { id, data };
-      getRec(id).then(r => { if (r) putRec(Object.assign(r, { cover:data })).catch(()=>{}); });
+      const ctx = c.getContext('2d'), d = ctx.getImageData(0, 0, c.width, c.height).data;
+      const step = Math.max(4, Math.floor(d.length / 4 / 200)) * 4;
+      let max = 0;
+      for (let i = 0; i < d.length; i += step) max = Math.max(max, d[i], d[i+1], d[i+2]);
+      return max < 12;
+    } catch(e){ return true; }
+  }
+  async function grabFrame(src, w, h){
+    const k = document.createElement('canvas'); k.width = w; k.height = h;
+    const ctx = k.getContext('2d'), ar = src.videoWidth / src.videoHeight || 16/9;
+    let dw = w, dh = w / ar; if (dh < h) { dh = h; dw = h * ar; }
+    try { ctx.drawImage(src, (w-dw)/2, (h-dh)/2, dw, dh); } catch(e){}
+    if (!isBlank(k)) return k;
+    // 描けへんかったらImageBitmap経由でもう一回
+    try {
+      if (window.createImageBitmap) {
+        const bmp = await createImageBitmap(src);
+        ctx.clearRect(0, 0, w, h); ctx.drawImage(bmp, (w-dw)/2, (h-dh)/2, dw, dh);
+        if (bmp.close) bmp.close();
+        if (!isBlank(k)) return k;
+      }
     } catch(e){}
+    return null;
+  }
+
+  // 最近の動画のサムネ：再生中の本編から撮る。真っ黒やったら数秒おきに撮り直す
+  const coverMem = { id:null, data:null }; // 保存が終わる前に撮れた場合用
+  let coverBusy = false, coverNext = 1;
+  async function captureCover(){
+    if (!needCover || coverBusy || !curId || v.readyState < 2 || v.seeking || !v.videoWidth || v.currentTime < coverNext) return;
+    coverBusy = true;
+    const id = curId;
+    const k = await grabFrame(v, 320, 180);
+    coverBusy = false;
+    if (id !== curId) return;
+    if (k) {
+      needCover = false;
+      const data = k.toDataURL('image/jpeg', 0.7);
+      coverMem.id = id; coverMem.data = data;
+      metaPatch(id, { cover:data });
+    } else if (++coverTries >= 5) {
+      needCover = false; // 何回撮っても黒い動画は諦めて🎬表示
+    } else coverNext = v.currentTime + 3;
   }
   let lastSave = 0;
   v.addEventListener('timeupdate', () => {
@@ -360,29 +469,32 @@
     if (!previewing) updateBar();
     if (Date.now() - lastSave > 2000) { savePos(); lastSave = Date.now(); }
   });
+  v.addEventListener('seeked', () => { coverNext = Math.min(coverNext, v.currentTime + 1); });
   const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
   const ICON_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
   $('center').innerHTML = ICON_PLAY;
   v.addEventListener('play', () => $('center').innerHTML = ICON_PAUSE);
-  v.addEventListener('pause', () => { $('center').innerHTML = ICON_PLAY; savePos(); showUI(); });
+  v.addEventListener('pause', () => { $('center').innerHTML = ICON_PLAY; savePos(); if (curBlob) showUI(); });
+  v.addEventListener('ended', () => { if (curId) store.del('pos_' + curId); });
   // 別アプリに切り替えたら裏の処理を止めてメモリを空ける。戻ってきたら復帰
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       savePos();
       gen++; running = false; liveWant = null;
       try { tv.pause(); tv.removeAttribute('src'); tv.load(); } catch(e){}
-    } else if (curBlob && $('home').style.display === 'none') {
+    } else if (curBlob && url && $('home').style.display === 'none') {
       if (v.error || v.readyState === 0) { reloadVideo(); return; }
       startThumbs(false);
-      try { tv.src = url; tv.load(); tv.play().then(() => tv.pause()).catch(()=>{}); } catch(e){}
+      try { tv.src = url; tv.load(); primeTv(); } catch(e){}
     }
   });
+  window.addEventListener('pagehide', savePos);
   let errRetry = 0;
   v.addEventListener('playing', () => errRetry = 0);
   v.addEventListener('error', () => {
-    if (!curBlob || document.hidden) return;
+    if (!curBlob || document.hidden || !v.getAttribute('src')) return;
     if (errRetry++ < 2) { chip('読み込みエラー', '自動で読み込み直すで', 1500); setTimeout(reloadVideo, 500); }
-    else chip('再生できへん', 'ホームに戻ってもう一回開いてみて', 3000);
+    else chip('再生できへん', '✕で閉じてもう一回開いてみて', 3000);
   });
   const togglePlay = () => v.paused ? v.play().catch(()=>{}) : v.pause();
   $('center').onclick = () => { togglePlay(); keepUI(); };
@@ -393,7 +505,8 @@
   const PRE_N = 120;
   let thumbs = [], preIdx = 0, gen = 0, running = false, liveWant = null;
   function sizeCanvas(){
-    const ar = v.videoWidth && v.videoHeight ? v.videoHeight / v.videoWidth : 9/16, c = $('cv');
+    const src = v.videoWidth ? v : tv;
+    const ar = src.videoWidth && src.videoHeight ? src.videoHeight / src.videoWidth : 9/16, c = $('cv');
     if (ar > 1) { c.height = 150; c.width = Math.round(150 / ar); } else { c.width = 176; c.height = Math.round(176 * ar); }
   }
   function startThumbs(reset){
@@ -426,10 +539,13 @@
       if (my !== gen) return;
       if (kind === 'pre') preIdx++;
       if (!ok || !tv.videoWidth) continue;
-      if (kind === 'live') { if (previewing) drawTo($('cv')); }
-      else if (kind === 'pre') {
+      if (kind === 'live') {
+        if (!previewing) continue;
+        const c = $('cv'), k = document.createElement('canvas'); k.width = c.width; k.height = c.height;
+        if (drawTo(k) && !isBlank(k)) c.getContext('2d').drawImage(k, 0, 0); // 黒いコマで上書きせえへん
+      } else if (kind === 'pre') {
         const k = document.createElement('canvas'), c = $('cv'); k.width = c.width; k.height = c.height;
-        if (drawTo(k)) thumbs[preIdx - 1] = k;
+        if (drawTo(k) && !isBlank(k)) thumbs[preIdx - 1] = k;
       }
     }
     if (my === gen) running = false;
@@ -440,10 +556,13 @@
       const i = clamp(Math.floor(t / tv.duration * PRE_N), 0, PRE_N - 1);
       let k = thumbs[i];
       for (let d = 1; !k && d < 6; d++) k = thumbs[i - d] || thumbs[i + d];
-      if (k) { const c = $('cv'); c.getContext('2d').drawImage(k, 0, 0, c.width, c.height); }
+      const c = $('cv'), ctx = c.getContext('2d');
+      if (k) ctx.drawImage(k, 0, 0, c.width, c.height);
+      else { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, c.width, c.height); } // 別の場面の絵が残らんように
     }
     liveWant = t; thumbLoop();
   }
+  tv.addEventListener('loadedmetadata', sizeCanvas);
   tv.addEventListener('loadeddata', thumbLoop);
 
   // ================= シークバー＆プレビュー =================
@@ -560,20 +679,21 @@
 
   // ================= ジェスチャー =================
   const HOLD_MS = 350, DOUBLE_MS = 280;
-  let s0 = null, st = 0, holdTimer = null, mode = null, startTime = 0, targetTime = 0;
+  let s0 = null, st = 0, holdTimer = null, mode = null, targetTime = 0, holdWasPaused = false;
   let lastX = 0, lastY = 0, lastT = 0, velS = 0, accum = 0, stPerf = 0;
   let lastTap = 0, tapTimer = null, multiSkip = 0, multiTimer = null, multiZone = null;
 
   g.addEventListener('touchstart', e => {
     if (!v.src) return;
     e.preventDefault();
+    if (e.touches.length > 1) { clearTimeout(holdTimer); if (mode === 'hold') { v.playbackRate = opt.rate; hideChip(); } mode = 'multi'; return; } // 2本指は無視
     const t = e.touches[0];
     s0 = toLocal(t.clientX, t.clientY); st = Date.now(); mode = null;
     stPerf = performance.now(); lastX = s0.x; lastY = s0.y; lastT = stPerf; velS = 0; accum = 0;
-    startTime = v.currentTime;
     holdTimer = setTimeout(() => {
       if (mode === null) {
         mode = 'hold';
+        holdWasPaused = v.paused;
         v.playbackRate = opt.hold;
         if (v.paused) v.play().catch(()=>{});
         chip(`▶▶ ${opt.hold}x`, '長押し中');
@@ -582,7 +702,7 @@
   }, {passive:false});
 
   g.addEventListener('touchmove', e => {
-    if (!v.src || !s0) return;
+    if (!v.src || !s0 || mode === 'multi') return;
     e.preventDefault();
     const t = e.touches[0], p = toLocal(t.clientX, t.clientY);
     const dx = p.x - s0.x, dy = p.y - s0.y, ax = Math.abs(dx), ay = Math.abs(dy);
@@ -631,9 +751,11 @@
   const end = e => {
     if (!v.src || !s0) return;
     e.preventDefault();
+    if (e.touches && e.touches.length > 0) return; // まだ指が残ってる
     clearTimeout(holdTimer);
     if (mode === 'hold') {
       v.playbackRate = opt.rate; hideChip();
+      if (holdWasPaused) v.pause(); // 止めてた状態で長押ししたら、離したらまた止める
     } else if (mode === 'scrub') {
       const jump = Math.round(accum);
       if (v.duration && jump !== 0) v.currentTime = clamp(v.currentTime + jump, 0, v.duration);
