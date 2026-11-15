@@ -59,8 +59,20 @@
   .navb { position:absolute; top:17px; width:38px; height:38px; z-index:4; border:0; background:none; padding:0;
     color:rgba(255,255,255,.6); display:flex; align-items:center; justify-content:center; transition:opacity var(--fade); }
   .navb svg { width:17px; height:17px; fill:currentColor; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
-  #prevBtn { right:106px; }
-  #nextBtn { right:68px; }
+  #prevBtn { right:144px; }
+  #nextBtn { right:106px; }
+  #listBtn { right:68px; }
+  #lensBtn { left:14px; right:auto; color:rgba(255,255,255,.45); }
+  /* 動画リスト（右側に縦並び） */
+  #plist { position:absolute; inset:0; z-index:7; display:none; }
+  #plist.open { display:block; }
+  #plPanel { position:absolute; top:66px; right:10px; bottom:12px; width:min(32%, 230px); overflow:hidden; touch-action:none;
+    display:flex; flex-direction:column; gap:8px; animation:slin .18s ease-out; }
+  @keyframes slin { from { transform:translateX(30px); opacity:0; } to { transform:none; opacity:1; } }
+  .pl { position:relative; flex:0 0 auto; border-radius:8px; overflow:hidden; background:#111; border:2px solid transparent; }
+  .pl.cur { border-color:var(--accent); }
+  .pl .cv { aspect-ratio:16/9; background:#000 center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:#555; font-size:22px; }
+  .pl span { position:absolute; left:6px; right:6px; bottom:3px; font-size:11px; font-weight:600; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #controls { position:absolute; left:0; right:0; bottom:0; z-index:4; pointer-events:none;
     padding:24px 10px 2px; background:linear-gradient(transparent, rgba(0,0,0,.6)); transition:opacity var(--fade); }
   #controls button, #controls select, #controls #bar { pointer-events:auto; }
@@ -68,7 +80,7 @@
   .hidden button, .hidden select, .hidden #bar { pointer-events:none !important; }
   select.q { -webkit-appearance:none; appearance:none; background:transparent; color:rgba(255,255,255,.8); text-align:center; text-align-last:center; }
   /* UIを出してないときのスワイプ：シークバーとサムネだけ */
-  #stage.scrubOnly #icons { display:none; }
+  #stage.scrubOnly #icons { visibility:hidden; } /* 場所は残して幅と位置を通常時と同じに */
   #stage.lite #preview canvas { display:none; }
   .row { display:flex; align-items:center; gap:4px; }
   .sp { flex:1; }
@@ -120,7 +132,7 @@
   #chapGrid { flex:1; min-width:0; display:flex; gap:6px; overflow:hidden; touch-action:none; }
   /* チャプター表示中にスワイプで飛ぶとき：シークバーとサムネをチャプター欄の上に出す（操作はできへん） */
   #stage.chapOn #controls { bottom:var(--chapH, 110px); background:none; }
-  #stage.chapOn #icons { display:none; }
+  #stage.chapOn #icons { visibility:hidden; }
   #stage.chapOn #bar { pointer-events:none !important; }
   #stage.chapOn #chip { bottom:calc(var(--chapH, 130px) + 12px); }
   .ch { position:relative; flex:0 0 auto; width:calc((100cqw - 26px) / var(--chapCols, 5.3)); border-radius:7px; overflow:hidden; background:#000; border:2px solid transparent; }
@@ -197,6 +209,9 @@
   <div id="center" class="hidden"></div>
   <button id="closeBtn" class="hidden" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 
+  <button id="lensBtn" class="navb hidden" aria-label="この場面を画像検索"><svg viewBox="0 0 24 24" style="fill:none"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 11.5l2-2 1.5 1.5 1.5-2" /></svg></button>
+  <button id="listBtn" class="navb hidden" aria-label="動画リスト"><svg viewBox="0 0 24 24" style="fill:none"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></button>
+  <div id="plist"><div id="plPanel"></div></div>
   <button id="prevBtn" class="navb hidden" aria-label="前の動画"><svg viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5L9 12l10 7z"/></svg></button>
   <button id="nextBtn" class="navb hidden" aria-label="次の動画"><svg viewBox="0 0 24 24"><path d="M18 5v14"/><path d="M5 5l10 7-10 7z"/></svg></button>
 
@@ -221,7 +236,7 @@
     </div>
   </div>
 
-  <div id="chap"><div id="chapPanel"><div id="chapTools"><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button><button id="chapMinus" aria-label="小さく">−</button><button id="chapPlus" aria-label="大きく">＋</button><select id="chapSel" aria-label="チャプターの間隔"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select></div><div id="chapGrid"></div></div></div>
+  <div id="chap"><div id="chapPanel"><div id="chapTools"><button id="chapPrev" aria-label="前のチャプター">←</button><button id="chapNext" aria-label="次のチャプター">→</button><button id="chapMinus" aria-label="小さく">−</button><button id="chapPlus" aria-label="大きく">＋</button><button id="chapSync" aria-label="今の位置を起点にする"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button><select id="chapSel" aria-label="チャプターの間隔"><option value="2">2秒</option><option value="5">5秒</option><option value="10">10秒</option><option value="30">30秒</option><option value="60">1分</option><option value="120">2分</option><option value="180">3分</option><option value="300">5分</option><option value="600">10分</option><option value="1800">30分</option></select></div><div id="chapGrid"></div></div></div>
 </div>
 
 <div id="home">
@@ -245,6 +260,7 @@
     <h2>設定</h2>
     <div id="reloadRow" style="display:none"><button class="btn ghost" id="reloadBtn">↻ 今の動画を読み込み直す（固まったとき用）</button></div>
     <h3>再生</h3>
+    <div class="set"><span>明るさ <b id="brightVal" style="color:#fff">100%</b></span><input type="range" id="optBright" min="10" max="150" step="5" style="width:48%; accent-color:var(--accent)"></div>
     <div class="set"><span>通常の再生速度</span>
       <select id="optRate"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2</option><option>2.5</option><option>3</option></select></div>
     <div class="set"><span>長押し中の速度</span>
@@ -275,7 +291,7 @@
 
     <h3>保存</h3>
     <div class="set"><span>最近の動画を保存する数</span>
-      <select id="optKeep"><option value="0">保存しない</option><option value="3">3本</option><option value="5" selected>5本</option><option value="10">10本</option><option value="20">20本</option></select></div>
+      <select id="optKeep"><option value="0">保存しない</option><option value="3">3本</option><option value="5" selected>5本</option><option value="10">10本</option><option value="20">20本</option><option value="50">50本</option><option value="100">100本</option><option value="9999">上限なし</option></select></div>
     <div class="set"><span>保存する動画の上限サイズ</span>
       <select id="optMax"><option value="1">1GB</option><option value="3" selected>3GB</option><option value="6">6GB</option><option value="0">上限なし</option></select></div>
     <div class="set"><span>再生位置を覚えとく</span><input type="checkbox" id="optResume" checked></div>
@@ -299,7 +315,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // ================= アプリ更新 =================
-  const APP_VERSION = '2026.11.13-18';
+  const APP_VERSION = '2026.11.15-1';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent;
@@ -570,6 +586,86 @@
   }
   $('reloadBtn').onclick = () => { $('sheet').classList.remove('open'); reloadVideo(); };
   $('chapBtn').onclick = () => openChap();
+
+  // ================= 動画リスト（右側） =================
+  let plOpen = false, plItems = [];
+  async function buildPlist(){
+    const box = $('plPanel'); box.innerHTML = ''; plItems = [];
+    const metas = await metaAll(), byId = Object.fromEntries(metas.map(m => [m.id, m]));
+    let list;
+    if (session.some(x => x.id === curId)) list = session.map(x => ({ id:x.id, name:x.name, file:x.file, meta:byId[x.id] }));
+    else list = metas.filter(m => m.saved).sort(byAdded).map(m => ({ id:m.id, name:m.name, meta:m }));
+    for (const it of list) {
+      const el = document.createElement('div'); el.className = 'pl' + (it.id === curId ? ' cur' : '');
+      el.innerHTML = '<div class="cv"></div><span></span>';
+      const cover = it.meta && it.meta.cover;
+      if (cover) el.querySelector('.cv').style.backgroundImage = `url(${cover})`; else el.querySelector('.cv').textContent = '🎬';
+      el.querySelector('span').textContent = it.name;
+      it.el = el; plItems.push(it); box.appendChild(el);
+    }
+    if (!list.length) box.innerHTML = '<div class="pl" style="padding:14px; font-size:12px; color:#aaa; background:rgba(0,0,0,.5)">最近の動画がまだないで</div>';
+    const cur = plItems.find(it => it.id === curId);
+    if (cur) box.scrollTop = cur.el.offsetTop - box.clientHeight / 2 + cur.el.offsetHeight / 2;
+  }
+  function openPlist(){ plOpen = true; hideUI(); $('plist').classList.add('open'); buildPlist(); }
+  function closePlist(){ plOpen = false; $('plist').classList.remove('open'); cancelAnimationFrame(plRaf); }
+  $('listBtn').onclick = () => plOpen ? closePlist() : openPlist();
+  $('plist').addEventListener('touchstart', e => { if (e.target.id === 'plist') { e.preventDefault(); closePlist(); } }, {passive:false});
+  $('plist').addEventListener('click', e => { if (e.target.id === 'plist') closePlist(); });
+  // 縦スクロール（回転してても使えるよう自前で）＋タップで再生
+  let ps = null, plVel = 0, plRaf = 0;
+  const plp = $('plPanel');
+  plp.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation(); cancelAnimationFrame(plRaf);
+    const t = e.touches[0], p = toLocal(t.clientX, t.clientY);
+    ps = { y:p.y, x:p.x, st:plp.scrollTop, ly:p.y, lt:performance.now(), moved:false, target:e.target }; plVel = 0;
+  }, {passive:false});
+  plp.addEventListener('touchmove', e => {
+    if (!ps) return; e.preventDefault(); e.stopPropagation();
+    const t = e.touches[0], p = toLocal(t.clientX, t.clientY), dy = p.y - ps.y;
+    if (Math.abs(dy) > 8 || Math.abs(p.x - ps.x) > 8) ps.moved = true;
+    if (p.x - ps.x > 60 && Math.abs(dy) < 40) { closePlist(); ps = null; return; } // 右へ払うと閉じる
+    plp.scrollTop = ps.st - dy;
+    const now = performance.now(), dt = Math.max(8, now - ps.lt);
+    plVel = plVel * 0.2 + ((p.y - ps.ly) / dt) * 0.8; ps.ly = p.y; ps.lt = now;
+  }, {passive:false});
+  plp.addEventListener('touchend', e => {
+    if (!ps) return; e.preventDefault(); e.stopPropagation();
+    if (!ps.moved) {
+      const el = ps.target.closest && ps.target.closest('.pl');
+      const it = el && plItems.find(x => x.el === el);
+      if (it && it.id !== curId) {
+        if (it.file) { play(it.file, it.id); if (it.meta && it.meta.cover) needCover = false; }
+        else openRecord(it.meta);
+        plItems.forEach(x => x.el.classList.toggle('cur', x === it));
+        setTimeout(() => { if (plOpen) { $('plist').classList.add('open'); hideUI(); } }, 50);
+      }
+    } else {
+      let vel = performance.now() - ps.lt > 80 ? 0 : -plVel * 1.9;
+      const glide = () => { if (Math.abs(vel) < 0.02) return; plp.scrollTop += vel * 16; vel *= 0.97; plRaf = requestAnimationFrame(glide); };
+      plRaf = requestAnimationFrame(glide);
+    }
+    ps = null;
+  }, {passive:false});
+
+  // ================= この場面を画像検索 =================
+  // 今の場面を画像にして共有メニューを出す → 「Google」アプリでレンズ検索、または「画像を保存」して写真の「調べる」で検索
+  $('lensBtn').onclick = () => {
+    if (!v.videoWidth) return;
+    const w = Math.min(1600, v.videoWidth), h = Math.round(w * v.videoHeight / v.videoWidth);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    try { c.getContext('2d').drawImage(v, 0, 0, w, h); } catch(e){}
+    const chk = document.createElement('canvas'); chk.width = 64; chk.height = 36;
+    chk.getContext('2d').drawImage(c, 0, 0, 64, 36);
+    if (isBlank(chk)) { chip('この場面は画像にできへんかった', 'HDR動画は真っ黒になることがある', 2500); return; }
+    const data = c.toDataURL('image/jpeg', 0.9), bin = atob(data.split(',')[1]), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const file = new File([u8], `scene_${fmt(v.currentTime).replace(/:/g, '-')}.jpg`, { type:'image/jpeg' });
+    if (navigator.canShare && navigator.canShare({ files:[file] })) {
+      v.pause();
+      navigator.share({ files:[file] }).catch(()=>{});
+    } else chip('この端末では共有できへん', '', 2000);
+  };
   // ピクチャーインピクチャー
   // iPhoneは独自API（webkitSetPresentationMode）を優先。タップの直後に「待たずに」呼ばんと拒否されるので、
   // 再生開始などは呼び出しの後にする
@@ -605,6 +701,7 @@
     curBlob = null; curId = null; previewing = false;
     resetZoom(); v.style.opacity = '';
     hideUI(); $('chip').classList.remove('show');
+    closePlist();
     $('home').style.display = 'block';
     if (reloadOnHome) { location.reload(); return; }
     applyBright();
@@ -978,8 +1075,11 @@
     for (let i = 0; i < chapItems.length; i++) { if (chapItems[i].start <= v.currentTime + 0.3) idx = i; else break; }
     return idx;
   }
+  // ←→やタップで選んだ直後は、キーフレームのずれで1つ前と判定されんよう選んだ番号を優先
+  let chapPick = 0, chapPickUntil = 0;
+  const pickedChap = () => Date.now() < chapPickUntil ? chapPick : curChapIndex();
   function markChapCur(){
-    const i = curChapIndex();
+    const i = pickedChap();
     chapItems.forEach((it, j) => it.el.classList.toggle('cur', j === i));
   }
   function centerChapCur(){
@@ -987,6 +1087,24 @@
     if (cur) gr.scrollLeft = cur.el.offsetLeft - gr.clientWidth / 2 + cur.el.offsetWidth / 2;
   }
   // チャプターに飛ぶ：キーフレームに素早く飛んで、止まってたら再生
+  function stepChap(dir){
+    if (!chapItems.length) return;
+    const j = clamp(pickedChap() + dir, 0, chapItems.length - 1);
+    chapPick = j; chapPickUntil = Date.now() + 2500;
+    jumpTo(chapItems[j].start);
+    const el = chapItems[j].el, gr = $('chapGrid');
+    glideTo(el.offsetLeft - gr.clientWidth * 0.38 + el.offsetWidth / 2); // 中央の少し左に来るように
+  }
+  function glideTo(target){
+    cancelAnimationFrame(chapRaf);
+    const gr = $('chapGrid'), from = gr.scrollLeft, t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / 180), e = 1 - Math.pow(1 - k, 3);
+      gr.scrollLeft = from + (target - from) * e;
+      if (k < 1) chapRaf = requestAnimationFrame(step);
+    };
+    chapRaf = requestAnimationFrame(step);
+  }
   function jumpTo(t){
     mainBusyUntil = Date.now() + 1500; // 裏のサムネ作りをいったん止めて、本編の読み込みを優先
     if (v.fastSeek) v.fastSeek(t); else v.currentTime = t;
@@ -1052,13 +1170,15 @@
         const plus = !!cs.target.closest('#chapPlus');
         const ni = clamp(chapColsIdx + (plus ? -1 : 1), 0, CHAP_COLS.length - 1);
         if (ni !== chapColsIdx) { chapColsIdx = ni; store.set(colsKey(), ni); keepChapView(applyChapCols); thumbLoop(); }
-      } else if (item) jumpTo(chapItems[item.dataset.i].start);
+      } else if (cs.target.closest && (cs.target.closest('#chapPrev') || cs.target.closest('#chapNext'))) {
+        stepChap(cs.target.closest('#chapNext') ? 1 : -1);
+      } else if (item) { chapPick = Number(item.dataset.i); chapPickUntil = Date.now() + 2500; jumpTo(chapItems[chapPick].start); }
     } else if (cs.dir === 'v' && dy > 40) closeChap();
     else if (cs.dir === 'h' && cs.inGrid) {
-      let vel = performance.now() - cs.lt > 80 ? 0 : -chapVel; // 指を止めてから離したら滑らせへん
+      let vel = performance.now() - cs.lt > 80 ? 0 : -chapVel * 1.9; // 指を止めてから離したら滑らせへん。勢いは強めに
       const glide = () => {
         if (Math.abs(vel) < 0.02) return;
-        grid.scrollLeft += vel * 16; vel *= 0.95;
+        grid.scrollLeft += vel * 16; vel *= 0.97;
         chapRaf = requestAnimationFrame(glide);
       };
       chapRaf = requestAnimationFrame(glide);
@@ -1114,7 +1234,7 @@
 
   // ================= UI表示 =================
   let uiTimer = null, uiShown = false;
-  const UI_IDS = ['controls','center','closeBtn','prevBtn','nextBtn'];
+  const UI_IDS = ['controls','center','closeBtn','prevBtn','nextBtn','listBtn','lensBtn'];
   function showUI(){ uiShown = true; UI_IDS.forEach(id => $(id).classList.remove('hidden')); keepUI(); }
   function hideUI(){ uiShown = false; clearTimeout(uiTimer); UI_IDS.forEach(id => $(id).classList.add('hidden')); }
   function keepUI(){ clearTimeout(uiTimer); uiTimer = setTimeout(() => { if (!v.paused && !previewing) hideUI(); }, 2500); }
@@ -1128,6 +1248,11 @@
 
   // ================= 明るさ・音量 =================
   let bright = store.get('bright', 1), vol = store.get('vol', 1);
+  $('optBright').value = Math.round(bright * 100); $('brightVal').textContent = Math.round(bright * 100) + '%';
+  $('optBright').addEventListener('input', e => {
+    bright = Number(e.target.value) / 100; store.set('bright', bright);
+    $('brightVal').textContent = e.target.value + '%'; applyBright();
+  });
   function applyBright(){
     const inPlayer = $('home').style.display === 'none';  // ホームはiPhoneの明るさのまま
     $('dimAll').style.opacity = inPlayer && bright < 1 ? (1 - bright).toFixed(2) : 0;
@@ -1244,9 +1369,9 @@
       if (ax > 10 || ay > 10) clearTimeout(holdTimer);
       if (chapOpen && dy > 18 && ay > ax * 1.5) { mode = 'chapclose'; closeChap(); }                    // チャプター表示中に下へ＝チャプターを閉じる
       else if (Math.abs(s0.x - p.w / 2) < 40 && s0.y < p.h * 0.85 && dy > 16 && ay > ax * 1.8) mode = 'close'; // 中央の縦帯を下へ＝閉じる
-      else if (!uiShown && !chapOpen && s0.y > p.h * 0.65 && dy < -30 && ay > ax * 1.2) { mode = 'chap'; openChap(); } // UI非表示時、下の方から上へ＝チャプター
+      else if (!chapOpen && s0.y > p.h * 0.65 && dy < -30 && ay > ax * 1.2) { mode = 'chap'; openChap(); } // 下の方から上へ＝チャプター
       else if (ax > 10 && ax >= ay * 0.7) { mode = 'scrub'; lastX = s0.x; lastT = stPerf; }           // 左右＝早送り・巻き戻し
-      else if (ay > 26 && ay > ax * 2.2) { mode = s0.x < p.w / 2 ? 'bright' : 'vol'; lastY = p.y; volAcc = 0; } // 上下＝明るさ・音量
+      else if (ay > 26 && ay > ax * 2.2) { mode = s0.x < p.w / 2 ? 'none' : 'vol'; lastY = p.y; volAcc = 0; } // 右側の上下＝音量（左側は何もしない）
       else return;
     }
     const now = performance.now();
