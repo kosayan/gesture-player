@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Audio">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<title>波形オーディオプレイヤー</title>
+<style>
+  :root { --accent:#ff4d4d; --blue:#5b8cff; --mute:rgba(255,255,255,.55); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  html,body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  button, select { font-family:inherit; }
+
+  /* ===== プレイヤー ===== */
+  #player { position:fixed; inset:0; display:flex; flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 14px) calc(env(safe-area-inset-left) + 14px);
+    background:radial-gradient(700px 500px at 80% 0%, rgba(255,77,77,.12), transparent 70%), #08080a; }
+  .top { display:flex; align-items:center; gap:6px; min-height:48px; }
+  .title { flex:1; min-width:0; }
+  .title b { display:block; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .title small { display:block; font-size:12px; color:var(--mute); margin-top:2px; }
+  .ib { background:none; border:0; color:rgba(255,255,255,.7); width:40px; height:40px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .ib svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  #closeBtn svg { width:24px; height:24px; }
+
+  #waveWrap { position:relative; flex:1; min-height:160px; margin:8px -14px 0; touch-action:none; }
+  #wave { position:absolute; inset:0; width:100%; height:100%; }
+  #playhead { position:absolute; left:50%; top:6%; bottom:6%; width:2px; margin-left:-1px; background:#fff; border-radius:2px; box-shadow:0 0 8px rgba(255,255,255,.6); pointer-events:none; }
+  #dragLabel { position:absolute; left:50%; top:10px; transform:translateX(-50%); font-size:15px; font-weight:700; font-variant-numeric:tabular-nums;
+    background:rgba(0,0,0,.45); padding:4px 10px; border-radius:8px; opacity:0; transition:opacity .12s; pointer-events:none; white-space:nowrap; }
+  #dragLabel em { font-style:normal; color:rgba(255,255,255,.6); font-weight:500; margin-left:6px; }
+  #chip { position:absolute; right:16px; bottom:12px; font-size:22px; font-weight:700; color:rgba(255,255,255,.75); text-shadow:0 1px 3px rgba(0,0,0,.6);
+    opacity:0; transition:opacity .12s; pointer-events:none; font-variant-numeric:tabular-nums; text-align:right; }
+  #chip small { display:block; font-size:12px; font-weight:500; color:rgba(255,255,255,.6); }
+  #waveMsg { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; font-size:13px; color:var(--mute); pointer-events:none; }
+  .show { opacity:1 !important; }
+
+  #overWrap { position:relative; height:54px; margin-top:6px; touch-action:none; }
+  #over { position:absolute; inset:0; width:100%; height:100%; }
+  .times { display:flex; justify-content:space-between; font-size:12px; color:var(--mute); font-variant-numeric:tabular-nums; margin-top:4px; }
+
+  .ctrl { display:flex; align-items:center; justify-content:center; gap:22px; margin-top:12px; }
+  .round { width:58px; height:58px; border-radius:50%; border:0; background:rgba(255,255,255,.08); color:#fff; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #playBtn { width:76px; height:76px; background:#fff; color:#000; display:flex; align-items:center; justify-content:center; }
+  #playBtn svg { width:30px; height:30px; fill:currentColor; }
+  .navs { width:44px; height:44px; background:none; }
+  .navs svg { width:20px; height:20px; fill:currentColor; stroke:currentColor; stroke-width:1.5; }
+
+  .chips { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+  .q { height:34px; padding:0 12px; border:1px solid rgba(255,255,255,.22); border-radius:17px; background:rgba(255,255,255,.04); color:rgba(255,255,255,.85);
+    font-size:13px; font-weight:600; -webkit-appearance:none; appearance:none; text-align:center; text-align-last:center; }
+  .q.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .q.a.on { background:var(--blue); border-color:var(--blue); }
+
+  /* ===== ホーム ===== */
+  #home { position:fixed; inset:0; z-index:20; background:#0d0d0f; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 30px) calc(env(safe-area-inset-left) + 18px); }
+  #home h1 { font-size:22px; margin:0 0 6px; }
+  .sub { color:#999; font-size:13px; line-height:1.8; margin:0 0 18px; }
+  .btn { background:var(--accent); color:#fff; border:0; border-radius:14px; padding:15px; font-size:16px; font-weight:700; width:100%; }
+  .btn.ghost { background:#2c2c2e; }
+  #home h2 { font-size:15px; margin:28px 0 10px; color:#ccc; }
+  .card { display:flex; align-items:center; gap:12px; background:#1c1c1e; border-radius:12px; padding:10px 6px 10px 12px; margin-bottom:8px; position:relative; }
+  .card canvas { width:84px; height:34px; flex-shrink:0; }
+  .card .nm { flex:1; min-width:0; }
+  .card .nm b { display:block; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .nm small { display:block; font-size:11px; color:#888; margin-top:3px; }
+  .card .prog { position:absolute; left:12px; right:12px; bottom:4px; height:2px; background:#333; border-radius:1px; }
+  .card .prog i { display:block; height:100%; background:var(--accent); border-radius:1px; }
+  .card .del { width:40px; height:40px; border:0; background:none; color:#888; font-size:16px; flex-shrink:0; }
+  .empty { color:#777; font-size:13px; line-height:1.7; }
+  .ver { color:#666; font-size:11px; margin-top:8px; text-align:center; }
+  #storage { color:#666; font-size:11px; margin-top:10px; }
+
+  /* ===== 設定 ===== */
+  #sheet { position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.4); display:none; align-items:flex-end; }
+  #sheet.open { display:flex; }
+  .panel { width:100%; max-width:560px; margin:0 auto; background:#1c1c1e; border-radius:18px 18px 0 0;
+    padding:18px calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px); max-height:80%; overflow:auto; }
+  .panel h2 { margin:0 0 8px; font-size:17px; }
+  .set { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #2c2c2e; font-size:15px; }
+  .set select { background:#2c2c2e; color:#fff; border:0; border-radius:8px; padding:8px 10px; font-size:15px; }
+  .set input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
+  .help { color:#999; font-size:12px; line-height:1.8; margin:10px 0 0; }
+</style>
+</head>
+<body>
+
+<div id="player">
+  <div class="top">
+    <button class="ib navs" id="prevBtn" aria-label="前の音声"><svg viewBox="0 0 24 24"><path d="M6 5v14"/><path d="M19 5L9 12l10 7z"/></svg></button>
+    <button class="ib navs" id="nextBtn" aria-label="次の音声"><svg viewBox="0 0 24 24"><path d="M18 5v14"/><path d="M5 5l10 7-10 7z"/></svg></button>
+    <div class="title"><b id="ttl">—</b><small id="sub"></small></div>
+    <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+    <button class="ib" id="closeBtn" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+
+  <div id="waveWrap">
+    <canvas id="wave"></canvas>
+    <div id="playhead"></div>
+    <div id="waveMsg"></div>
+    <div id="dragLabel"></div>
+    <div id="chip"></div>
+  </div>
+
+  <div id="overWrap"><canvas id="over"></canvas></div>
+  <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+
+  <div class="ctrl">
+    <button class="round" id="backBtn">−10</button>
+    <button class="round" id="playBtn" aria-label="再生"></button>
+    <button class="round" id="fwdBtn">+10</button>
+  </div>
+  <div class="chips">
+    <select class="q" id="qRate" aria-label="再生速度"></select>
+    <select class="q" id="qSkip" aria-label="スキップ秒数"></select>
+    <button class="q a" id="aBtn">A</button>
+    <button class="q a" id="bBtn">B</button>
+    <button class="q" id="loopClr" style="display:none">リピート解除</button>
+  </div>
+</div>
+
+<div id="home">
+  <h1>〰️ 波形オーディオプレイヤー</h1>
+  <p class="sub">波形を左右にドラッグして移動 ／ 2本指で波形を拡大・縮小<br>
+  長押し＝倍速 ／ ダブルタップ＝右で進む・左で戻る ／ タップ＝再生・停止<br>
+  A・Bで区間リピート（練習用に）</p>
+  <button class="btn" id="openBtn">＋ 音声を選ぶ（まとめて選べる）</button>
+  <input type="file" id="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aiff,.caf" multiple hidden>
+  <h2>最近の音声（タップですぐ再生）</h2>
+  <div id="recent"></div>
+  <div id="storage"></div>
+  <div style="margin-top:22px"><button class="btn ghost" id="setBtn2">⚙︎ 設定</button></div>
+  <div style="margin-top:10px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
+  <div class="ver"></div>
+</div>
+
+<div id="sheet">
+  <div class="panel">
+    <h2>設定</h2>
+    <div class="set"><span>長押し中の速度</span><select id="optHold"><option>1.5</option><option selected>2</option><option>3</option></select></div>
+    <div class="set"><span>速度を変えても音程を保つ</span><input type="checkbox" id="optPitch" checked></div>
+    <div class="set"><span>最近の音声を保存する数</span>
+      <select id="optKeep"><option value="0">保存しない</option><option value="10">10本</option><option value="30" selected>30本</option><option value="100">100本</option><option value="9999">上限なし</option></select></div>
+    <div class="set"><span>再生位置を覚えとく</span><input type="checkbox" id="optResume" checked></div>
+    <p class="help">・波形は最初に開いたときに作る（長い音声は数秒〜数十秒かかる）。2回目からは保存した波形をすぐ出す<br>
+    ・ロック画面やコントロールセンターから再生・停止・スキップできる<br>
+    ・音声はiPhoneの中で再生されるだけで、どこにも送信されへんで</p>
+    <div style="margin-top:16px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
+    <div class="ver"></div>
+    <div style="margin-top:10px"><button class="btn" id="closeSheet">閉じる</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s));
+    const h = Math.floor(s/3600), m = Math.floor(s%3600/60), sec = s%60;
+    return (h ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0'); };
+  const fmtDiff = d => (d >= 0 ? '+' : '−') + (Math.abs(d) < 60 ? Math.round(Math.abs(d)) + '秒' : fmt(Math.abs(d)));
+
+  // ================= 更新 =================
+  const APP_VERSION = '2026.11.17-1';
+  document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
+  document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
+    const label = btn.textContent; btn.textContent = '確認中…';
+    try {
+      const html = await (await fetch('./?check=' + Date.now(), { cache:'no-store' })).text();
+      const m = html.match(/APP_VERSION = '([^']+)'/);
+      if (m && m[1] !== APP_VERSION) { btn.textContent = '更新中…'; savePos(); location.replace('./?v=' + Date.now()); return; }
+      btn.textContent = m ? '✓ 最新版やで' : '確認できへんかった';
+    } catch(e) { btn.textContent = '通信できへんかった'; }
+    setTimeout(() => btn.textContent = label, 2000);
+  }));
+
+  // ================= 設定 =================
+  const store = {
+    get(k, d){ try { const x = localStorage.getItem('gap_'+k); return x === null ? d : JSON.parse(x); } catch(e){ return d; } },
+    set(k, v){ try { localStorage.setItem('gap_'+k, JSON.stringify(v)); } catch(e){} },
+    del(k){ try { localStorage.removeItem('gap_'+k); } catch(e){} }
+  };
+  const opt = { rate:store.get('rate', 1), skip:store.get('skip', 10), hold:store.get('hold', 2), pitch:store.get('pitch', true),
+    keep:store.get('keep', 30), resume:store.get('resume', true), zoom:store.get('zoom', 60) };
+  const RATES = [0.5,0.6,0.7,0.75,0.8,0.85,0.9,0.95,1,1.1,1.25,1.5,1.75,2,2.5,3];
+  $('qRate').innerHTML = RATES.map(r => `<option value="${r}">${r}x</option>`).join('');
+  $('qSkip').innerHTML = Array.from({ length:60 }, (_, i) => `<option value="${i+1}">${i+1}秒</option>`).join('');
+  function syncUI(){
+    $('qRate').value = opt.rate; $('qSkip').value = opt.skip;
+    $('optHold').value = opt.hold; $('optPitch').checked = opt.pitch; $('optKeep').value = opt.keep; $('optResume').checked = opt.resume;
+    $('backBtn').textContent = '−' + opt.skip; $('fwdBtn').textContent = '+' + opt.skip;
+  }
+  function setOpt(k, v){ opt[k] = v; store.set(k, v); syncUI(); }
+  $('qRate').addEventListener('change', e => { setOpt('rate', Number(e.target.value)); if (!holding) au.playbackRate = opt.rate; });
+  $('qSkip').addEventListener('change', e => setOpt('skip', Number(e.target.value)));
+  $('optHold').addEventListener('change', e => setOpt('hold', Number(e.target.value)));
+  $('optPitch').addEventListener('change', e => { setOpt('pitch', e.target.checked); applyPitch(); });
+  $('optKeep').addEventListener('change', e => { setOpt('keep', Number(e.target.value)); trimRecent().then(renderRecent); });
+  $('optResume').addEventListener('change', e => setOpt('resume', e.target.checked));
+  const openSheet = () => $('sheet').classList.add('open');
+  $('setBtn').onclick = openSheet; $('setBtn2').onclick = openSheet;
+  $('closeSheet').onclick = () => $('sheet').classList.remove('open');
+  $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('sheet').classList.remove('open'); });
+  syncUI();
+
+  // ================= 保存（IndexedDB：一覧／音声本体／波形を別々に） =================
+  let dbp = null;
+  function db(){
+    if (!dbp) dbp = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open('gap', 1);
+        r.onupgradeneeded = () => { const d = r.result; ['meta','blobs','peaks'].forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath:'id' }); }); };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked'));
+      } catch(e){ rej(e); }
+    }).catch(e => { dbp = null; throw e; });
+    return dbp;
+  }
+  async function tx(name, mode, fn){
+    const d = await db();
+    return new Promise((res, rej) => {
+      const t = d.transaction(name, mode), s = t.objectStore(name);
+      let out; const r = fn(s); if (r) r.onsuccess = () => out = r.result;
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort'));
+    });
+  }
+  const get = (n, id) => tx(n, 'readonly', s => s.get(id)).catch(() => null);
+  const put = (n, o) => tx(n, 'readwrite', s => s.put(o));
+  const del = (n, id) => tx(n, 'readwrite', s => s.delete(id)).catch(() => {});
+  const metaAll = () => tx('meta', 'readonly', s => s.getAll()).catch(() => []);
+  async function metaPatch(id, patch){ const m = await get('meta', id); if (m) await put('meta', Object.assign(m, patch)).catch(()=>{}); }
+  async function removeAudio(id){ await del('meta', id); del('blobs', id); del('peaks', id); store.del('pos_' + id); }
+  const byAdded = (a, b) => (b.added || b.at) - (a.added || a.at);
+  async function trimRecent(){ const all = (await metaAll()).sort((a, b) => b.at - a.at); for (const m of all.slice(opt.keep)) await removeAudio(m.id); }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+
+  const saving = new Set();
+  async function saveAudio(file, id, addedAt){
+    if (opt.keep === 0) return;
+    const old = await get('meta', id);
+    if (old && old.saved) { metaPatch(id, { at:Date.now() }); return; }
+    await put('meta', { id, name:file.name, size:file.size, at:addedAt || Date.now(), added:(old && old.added) || addedAt || Date.now(), saved:false, mini:old && old.mini }).catch(()=>{});
+    await trimRecent();
+    saving.add(id);
+    try { await put('blobs', { id, blob:file }); if (await get('meta', id)) await metaPatch(id, { saved:true }); else del('blobs', id); }
+    catch(e) { del('meta', id); }
+    saving.delete(id);
+    if ($('home').style.display !== 'none') renderRecent();
+  }
+
+  function drawMini(c, mini){
+    const dpr = window.devicePixelRatio || 1, w = c.clientWidth || 84, h = c.clientHeight || 34;
+    c.width = w * dpr; c.height = h * dpr;
+    const x = c.getContext('2d'); x.scale(dpr, dpr); x.fillStyle = 'rgba(255,255,255,.55)';
+    if (!mini) { x.fillRect(0, h/2 - 1, w, 2); return; }
+    const n = mini.length, bw = w / n;
+    for (let i = 0; i < n; i++) { const a = Math.max(1, mini[i] / 255 * h * 0.9); x.fillRect(i * bw, (h - a) / 2, Math.max(1, bw - 0.6), a); }
+  }
+  let renderSeq = 0;
+  async function renderRecent(){
+    const seq = ++renderSeq, box = $('recent');
+    if (opt.keep === 0) { box.innerHTML = '<div class="empty">設定で「保存しない」になってるで</div>'; return; }
+    const all = (await metaAll()).sort(byAdded);
+    if (seq !== renderSeq) return;
+    if (!all.length) { box.innerHTML = '<div class="empty">まだないで。一回開いた音声がここに並ぶ</div>'; $('storage').textContent = ''; return; }
+    box.innerHTML = '';
+    for (const m of all) {
+      const pos = store.get('pos_' + m.id, null), pct = pos && pos.d ? Math.min(100, pos.p / pos.d * 100) : 0;
+      const el = document.createElement('div'); el.className = 'card';
+      el.innerHTML = `<canvas></canvas><div class="nm"><b></b><small></small></div><button class="del" aria-label="削除">✕</button><div class="prog"><i style="width:${pct}%"></i></div>`;
+      el.querySelector('b').textContent = m.name;
+      el.querySelector('small').textContent = (pos && pos.d ? fmt(pos.d) : '') + (m.saved ? '' : '　保存中…');
+      el.querySelector('.del').addEventListener('click', async e => { e.stopPropagation(); el.remove(); await removeAudio(m.id); renderRecent(); });
+      el.addEventListener('click', () => openRecord(m));
+      box.appendChild(el);
+      drawMini(el.querySelector('canvas'), m.mini);
+    }
+    try { const est = await navigator.storage.estimate(); if (seq === renderSeq) $('storage').textContent = `使用中 ${(est.usage/1e9).toFixed(2)}GB`; } catch(e){}
+  }
+
+  // ================= 再生 =================
+  const au = new Audio(); au.preload = 'auto';
+  document.body.appendChild(au);
+  let curId = null, curName = '', curBlob = null, url = null, peaks = null, session = [];
+  let holding = false, loopA = null, loopB = null;
+  function applyPitch(){ try { au.preservesPitch = opt.pitch; au.webkitPreservesPitch = opt.pitch; au.mozPreservesPitch = opt.pitch; } catch(e){} }
+  applyPitch();
+  const fileId = f => f.name + '_' + f.size + '_' + (f.lastModified || 0);
+  const natural = new Intl.Collator('ja', { numeric:true, sensitivity:'base' });
+
+  $('openBtn').onclick = () => $('file').click();
+  $('file').addEventListener('change', e => {
+    const files = Array.from(e.target.files || []); e.target.value = '';
+    if (!files.length) return;
+    files.sort((a, b) => natural.compare(a.name, b.name));
+    session = files.length > 1 ? files.map(f => ({ id:fileId(f), file:f, name:f.name })) : [];
+    play(files[0], fileId(files[0]), files[0].name);
+    (async () => { const base = Date.now(); for (let i = 0; i < files.length; i++) await saveAudio(files[i], fileId(files[i]), base - i); })();
+  });
+  async function openRecord(m){
+    if (saving.has(m.id)) { alert2('まだ保存中やで。ちょっと待ってな'); return; }
+    const r = await get('blobs', m.id);
+    if (!r || !r.blob) { await removeAudio(m.id); renderRecent(); alert2('この音声はiPhoneに消されてたみたい。選び直してな'); return; }
+    if (!session.some(x => x.id === m.id)) session = [];
+    play(r.blob, m.id, m.name);
+    metaPatch(m.id, { at:Date.now() });
+  }
+  function alert2(t){ const d = document.createElement('div'); d.className = 'empty'; d.style.color = '#ff8a8a'; d.textContent = t; $('recent').prepend(d); setTimeout(() => d.remove(), 3500); }
+
+  function play(blob, id, name){
+    if (curId && curId !== id) savePos();
+    curId = id; curName = name; curBlob = blob; peaks = null; loopA = loopB = null; updateLoopUI();
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(blob);
+    au.src = url; au.playbackRate = opt.rate; applyPitch();
+    $('ttl').textContent = name;
+    $('sub').textContent = session.length ? `${session.findIndex(x => x.id === id) + 1} / ${session.length}` : '';
+    $('home').style.display = 'none';
+    $('waveMsg').textContent = '波形を準備中…';
+    au.play().catch(() => {});
+    resize(); kick();
+    setupMediaSession();
+    loadPeaks(id, blob);
+  }
+  function goHome(){
+    savePos(); au.pause();
+    $('home').style.display = 'block'; renderRecent();
+  }
+  $('closeBtn').onclick = goHome;
+  function savePos(){ if (opt.resume && curId && au.duration && au.currentTime > 0) store.set('pos_' + curId, { p:au.currentTime, d:au.duration }); }
+  au.addEventListener('loadedmetadata', () => {
+    if (opt.resume && curId) { const p = store.get('pos_' + curId, null); if (p && p.p > 3 && p.p < au.duration - 3) { au.currentTime = p.p; chip('続きから', fmt(p.p), 1300); } }
+    $('dur').textContent = fmt(au.duration);
+    kick();
+  });
+  let lastSave = 0;
+  au.addEventListener('timeupdate', () => {
+    $('cur').textContent = fmt(au.currentTime);
+    if (Date.now() - lastSave > 2000) { savePos(); lastSave = Date.now(); }
+    try { if ('mediaSession' in navigator && au.duration) navigator.mediaSession.setPositionState({ duration:au.duration, playbackRate:au.playbackRate, position:Math.min(au.currentTime, au.duration) }); } catch(e){}
+  });
+  au.addEventListener('ended', () => { if (curId) store.del('pos_' + curId); if (session.length) step(1, true); });
+  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
+  $('playBtn').innerHTML = ICON_PLAY;
+  au.addEventListener('play', () => { $('playBtn').innerHTML = ICON_PAUSE; kick(); });
+  au.addEventListener('pause', () => { $('playBtn').innerHTML = ICON_PLAY; savePos(); });
+  document.addEventListener('visibilitychange', savePos); window.addEventListener('pagehide', savePos);
+  const toggle = () => au.paused ? au.play().catch(()=>{}) : au.pause();
+  const skip = sec => { au.currentTime = clamp(au.currentTime + sec, 0, au.duration || 0); kick(); };
+  $('playBtn').onclick = toggle;
+  $('backBtn').onclick = () => { skip(-opt.skip); chip('−' + opt.skip + '秒', '', 600); };
+  $('fwdBtn').onclick = () => { skip(opt.skip); chip('+' + opt.skip + '秒', '', 600); };
+
+  async function step(dir, auto){
+    let list, i;
+    if (session.some(x => x.id === curId)) { list = session; i = session.findIndex(x => x.id === curId); }
+    else { list = (await metaAll()).filter(m => m.saved).sort(byAdded); i = list.findIndex(m => m.id === curId); }
+    const j = i + dir;
+    if (j < 0 || j >= list.length) { if (!auto) chip(dir > 0 ? '最後やで' : '最初やで', '', 1000); return; }
+    const it = list[j];
+    if (it.file) play(it.file, it.id, it.name); else openRecord(it);
+  }
+  $('prevBtn').onclick = () => step(-1);
+  $('nextBtn').onclick = () => step(1);
+
+  // ロック画面・コントロールセンター
+  function setupMediaSession(){
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title:curName, artist:'波形オーディオプレイヤー' });
+      const ms = navigator.mediaSession;
+      ms.setActionHandler('play', () => au.play());
+      ms.setActionHandler('pause', () => au.pause());
+      ms.setActionHandler('seekbackward', d => skip(-(d && d.seekOffset || opt.skip)));
+      ms.setActionHandler('seekforward', d => skip(d && d.seekOffset || opt.skip));
+      ms.setActionHandler('seekto', d => { au.currentTime = d.seekTime; kick(); });
+      ms.setActionHandler('previoustrack', () => step(-1));
+      ms.setActionHandler('nexttrack', () => step(1));
+    } catch(e){}
+  }
+
+  // ================= A-Bリピート =================
+  function updateLoopUI(){
+    $('aBtn').classList.toggle('on', loopA !== null); $('bBtn').classList.toggle('on', loopB !== null);
+    $('aBtn').textContent = loopA !== null ? 'A ' + fmt(loopA) : 'A';
+    $('bBtn').textContent = loopB !== null ? 'B ' + fmt(loopB) : 'B';
+    $('loopClr').style.display = loopA !== null || loopB !== null ? '' : 'none';
+    kick();
+  }
+  $('aBtn').onclick = () => { loopA = au.currentTime; if (loopB !== null && loopB <= loopA) loopB = null; updateLoopUI(); chip('A地点', fmt(loopA), 800); };
+  $('bBtn').onclick = () => {
+    const t = au.currentTime;
+    if (loopA === null) { loopA = 0; }
+    if (t <= loopA + 0.3) { chip('Aより後ろで押してな', '', 1200); return; }
+    loopB = t; updateLoopUI(); au.currentTime = loopA; chip('区間リピート', fmt(loopA) + ' 〜 ' + fmt(loopB), 1200);
+  };
+  $('loopClr').onclick = () => { loopA = loopB = null; updateLoopUI(); };
+
+  // ================= 波形の作成 =================
+  const PPS = 100; // 1秒あたりの波形の細かさ
+  async function loadPeaks(id, blob){
+    const saved = await get('peaks', id);
+    if (saved && saved.data && id === curId) { peaks = saved.data; $('waveMsg').textContent = ''; kick(); return; }
+    try {
+      if (!au.duration || !isFinite(au.duration)) await new Promise(r => { au.addEventListener('loadedmetadata', r, { once:true }); setTimeout(r, 5000); });
+      const dur = au.duration || 600;
+      // 低いサンプルレートでデコードしてメモリを節約（波形の見た目には十分）
+      const sr = dur > 1800 ? 3000 : dur > 600 ? 6000 : 11025;
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const ctx = new OAC(1, Math.max(1, Math.ceil(dur * sr)), sr);
+      const buf = await blob.arrayBuffer();
+      if (id !== curId) return;
+      const ab = await new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+      if (id !== curId) return;
+      const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
+      const n = Math.ceil(ab.duration * PPS), spb = ab.sampleRate / PPS, raw = new Float32Array(n);
+      let max = 0;
+      for (let i = 0; i < n; i++) {
+        const s = Math.floor(i * spb), e = Math.min(chs[0].length, Math.floor((i + 1) * spb));
+        let m = 0;
+        for (const ch of chs) for (let k = s; k < e; k++) { const v = ch[k] < 0 ? -ch[k] : ch[k]; if (v > m) m = v; }
+        raw[i] = m; if (m > max) max = m;
+      }
+      const data = new Uint8Array(n);
+      for (let i = 0; i < n; i++) data[i] = Math.round(Math.sqrt(raw[i] / (max || 1)) * 255); // 小さい音も見えるように平方根で持ち上げ
+      peaks = data;
+      $('waveMsg').textContent = '';
+      kick();
+      put('peaks', { id, data }).catch(()=>{});
+      const mini = new Uint8Array(60);
+      for (let i = 0; i < 60; i++) { let m = 0; const s = Math.floor(i * n / 60), e = Math.floor((i + 1) * n / 60); for (let k = s; k < e; k++) if (data[k] > m) m = data[k]; mini[i] = m; }
+      metaPatch(id, { mini });
+    } catch(e) {
+      if (id === curId) $('waveMsg').textContent = '波形を作れへんかった（再生はできるで）';
+    }
+  }
+
+  // ================= 描画 =================
+  const wc = $('wave'), oc = $('over');
+  let raf = 0, dragT = null, interacting = false;
+  function resize(){
+    const dpr = window.devicePixelRatio || 1;
+    for (const c of [wc, oc]) { c.width = Math.max(1, c.clientWidth * dpr); c.height = Math.max(1, c.clientHeight * dpr); }
+    kick();
+  }
+  window.addEventListener('resize', () => setTimeout(resize, 80));
+  function kick(){ if (!raf) raf = requestAnimationFrame(frame); }
+  function frame(){
+    raf = 0;
+    // 区間リピート
+    if (loopA !== null && loopB !== null && !au.paused && au.currentTime >= loopB) au.currentTime = loopA;
+    draw();
+    if (!au.paused || interacting) raf = requestAnimationFrame(frame);
+  }
+  function peakAt(i0, i1){
+    if (!peaks) return 0;
+    i0 = Math.max(0, Math.floor(i0)); i1 = Math.min(peaks.length, Math.max(i0 + 1, Math.ceil(i1)));
+    let m = 0; for (let i = i0; i < i1; i++) if (peaks[i] > m) m = peaks[i];
+    return m / 255;
+  }
+  function draw(){
+    const dpr = window.devicePixelRatio || 1, W = wc.width, H = wc.height, x = wc.getContext('2d');
+    const t = dragT !== null ? dragT : au.currentTime, played = au.currentTime, pps = opt.zoom * dpr;
+    x.clearRect(0, 0, W, H);
+    const mid = H / 2, bar = Math.max(2, Math.round(2 * dpr)), gap = Math.max(1, Math.round(1.2 * dpr)), stepPx = bar + gap;
+    // 区間リピートの範囲
+    if (loopA !== null) {
+      const xa = W / 2 + (loopA - t) * pps, xb = loopB !== null ? W / 2 + (loopB - t) * pps : xa + 2 * dpr;
+      x.fillStyle = 'rgba(91,140,255,.16)'; x.fillRect(xa, 0, Math.max(2, xb - xa), H);
+      x.fillStyle = 'rgba(91,140,255,.9)'; x.fillRect(xa - dpr, 0, 2 * dpr, H); if (loopB !== null) x.fillRect(xb - dpr, 0, 2 * dpr, H);
+    }
+    const dur = au.duration || 0;
+    for (let px = (W / 2) % stepPx - stepPx; px < W; px += stepPx) {
+      const t0 = t + (px - W / 2) / pps, t1 = t0 + stepPx / pps;
+      if (t1 < 0 || t0 > dur) continue;
+      const a = peaks ? peakAt(t0 * PPS, t1 * PPS) : 0.04;
+      const hgt = Math.max(dpr * 1.5, a * H * 0.44);
+      x.fillStyle = t0 < played ? 'rgba(255,77,77,.95)' : 'rgba(255,255,255,.55)';
+      x.fillRect(px, mid - hgt, bar, hgt * 2);
+    }
+    // 秒の目盛り
+    x.fillStyle = 'rgba(255,255,255,.35)'; x.font = `${11 * dpr}px -apple-system, sans-serif`; x.textAlign = 'center';
+    const tick = opt.zoom > 120 ? 1 : opt.zoom > 40 ? 5 : opt.zoom > 12 ? 15 : opt.zoom > 4 ? 60 : 300;
+    for (let s = Math.ceil((t - W / 2 / pps) / tick) * tick; s < t + W / 2 / pps; s += tick) {
+      if (s < 0 || s > dur) continue;
+      const px = W / 2 + (s - t) * pps;
+      x.fillRect(px, H - 14 * dpr, dpr, 5 * dpr);
+      x.fillText(fmt(s), px, H - 2 * dpr);
+    }
+    // 全体の波形
+    const OW = oc.width, OH = oc.height, o = oc.getContext('2d');
+    o.clearRect(0, 0, OW, OH);
+    if (dur) {
+      const ob = Math.max(1, Math.round(1.5 * dpr)), og = Math.max(1, Math.round(dpr)), ost = ob + og, n = peaks ? peaks.length : 0;
+      for (let px = 0; px < OW; px += ost) {
+        const a = peaks ? peakAt(px / OW * n, (px + ost) / OW * n) : 0.05;
+        const hgt = Math.max(dpr, a * OH * 0.42);
+        o.fillStyle = px / OW * dur < played ? 'rgba(255,77,77,.9)' : 'rgba(255,255,255,.4)';
+        o.fillRect(px, OH / 2 - hgt, ob, hgt * 2);
+      }
+      // いま拡大して見てる範囲
+      const vw = W / pps, vx0 = (t - vw / 2) / dur * OW, vx1 = (t + vw / 2) / dur * OW;
+      o.strokeStyle = 'rgba(255,255,255,.7)'; o.lineWidth = dpr; o.strokeRect(vx0, dpr, Math.max(2 * dpr, vx1 - vx0), OH - 2 * dpr);
+      if (loopA !== null) { o.fillStyle = 'rgba(91,140,255,.9)'; o.fillRect(loopA / dur * OW - dpr, 0, 2 * dpr, OH); if (loopB !== null) o.fillRect(loopB / dur * OW - dpr, 0, 2 * dpr, OH); }
+      const cx = t / dur * OW; o.fillStyle = '#fff'; o.fillRect(cx - dpr, 0, 2 * dpr, OH);
+    }
+    $('cur').textContent = fmt(t);
+  }
+
+  // ================= 操作（拡大波形） =================
+  let chipTimer = null;
+  function chip(main, sub, ms){ $('chip').innerHTML = main + (sub ? `<small>${sub}</small>` : ''); $('chip').classList.add('show'); clearTimeout(chipTimer); if (ms) chipTimer = setTimeout(() => $('chip').classList.remove('show'), ms); }
+  const HOLD_MS = 350, DOUBLE_MS = 220;
+  let ts = null, mode = null, holdTimer = null, holdWasPaused = false, lastTap = 0, lastSide = null, tapTimer = null, multi = 0, multiTimer = null, pz = null;
+  const ww = $('waveWrap');
+  const local = t => { const r = ww.getBoundingClientRect(); return { x:t.clientX - r.left, y:t.clientY - r.top, w:r.width }; };
+  ww.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length >= 2) {
+      clearTimeout(holdTimer); endHold();
+      const a = local(e.touches[0]), b = local(e.touches[1]);
+      pz = { d0:Math.abs(a.x - b.x) || 1, z0:opt.zoom }; mode = 'pinch'; interacting = true; kick(); return;
+    }
+    const p = local(e.touches[0]);
+    ts = { x:p.x, y:p.y, t:Date.now(), base:au.currentTime, w:p.w };
+    mode = null;
+    holdTimer = setTimeout(() => {
+      if (mode !== null) return;
+      mode = 'hold'; holding = true; holdWasPaused = au.paused;
+      au.playbackRate = opt.hold; if (au.paused) au.play().catch(()=>{});
+      chip('▶▶ ' + opt.hold + 'x', '長押し中');
+    }, HOLD_MS);
+  }, { passive:false });
+  ww.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (mode === 'pinch' && e.touches.length >= 2) {
+      const a = local(e.touches[0]), b = local(e.touches[1]);
+      opt.zoom = clamp(pz.z0 * (Math.abs(a.x - b.x) || 1) / pz.d0, 2, 600); store.set('zoom', opt.zoom);
+      chip('🔍 ' + (opt.zoom >= 10 ? Math.round(opt.zoom) : opt.zoom.toFixed(1)) + 'px/秒', '波形の拡大', 0); kick(); return;
+    }
+    if (!ts || mode === 'pinch' || mode === 'hold') return;
+    const p = local(e.touches[0]), dx = p.x - ts.x;
+    if (mode === null && Math.abs(dx) > 8) { clearTimeout(holdTimer); mode = 'drag'; interacting = true; kick(); }
+    if (mode === 'drag') {
+      // 波形を指でつかんで動かす（離したらその位置へ）
+      dragT = clamp(ts.base - dx / opt.zoom, 0, au.duration || 0);
+      $('dragLabel').innerHTML = fmt(dragT) + `<em>${fmtDiff(dragT - ts.base)}</em>`;
+      $('dragLabel').classList.add('show'); kick();
+    }
+  }, { passive:false });
+  function endHold(){ if (!holding) return; holding = false; au.playbackRate = opt.rate; $('chip').classList.remove('show'); if (holdWasPaused) au.pause(); }
+  const onEnd = e => {
+    e.preventDefault();
+    if (e.touches.length > 0) return;
+    clearTimeout(holdTimer);
+    if (mode === 'pinch') { pz = null; setTimeout(() => $('chip').classList.remove('show'), 600); }
+    else if (mode === 'hold') endHold();
+    else if (mode === 'drag') { au.currentTime = dragT; dragT = null; $('dragLabel').classList.remove('show'); }
+    else if (ts && Date.now() - ts.t < HOLD_MS) tap(ts);
+    mode = null; ts = null; interacting = false; kick();
+  };
+  ww.addEventListener('touchend', onEnd, { passive:false });
+  ww.addEventListener('touchcancel', onEnd, { passive:false });
+  // タップ：1回＝再生/停止（2回目を少し待つ）、2回＝右で進む・左で戻る
+  function tap(p){
+    const side = p.x < p.w / 2 ? -1 : 1, now = Date.now();
+    if (multiTimer && side === lastSide) { doSkip(side); return; }
+    if (now - lastTap < DOUBLE_MS && side === lastSide) { clearTimeout(tapTimer); lastTap = 0; doSkip(side); return; }
+    lastTap = now; lastSide = side;
+    clearTimeout(tapTimer); tapTimer = setTimeout(toggle, DOUBLE_MS);
+  }
+  function doSkip(side){
+    multi += opt.skip; skip(side * opt.skip);
+    chip((side < 0 ? '−' : '+') + multi + '秒', '');
+    clearTimeout(multiTimer);
+    multiTimer = setTimeout(() => { multi = 0; multiTimer = null; $('chip').classList.remove('show'); }, 500);
+  }
+
+  // 全体の波形：タップ・なぞってその位置へ
+  const ow = $('overWrap');
+  const overT = t => { const r = ow.getBoundingClientRect(); return clamp((t.clientX - r.left) / r.width, 0, 1) * (au.duration || 0); };
+  ow.addEventListener('touchstart', e => { e.preventDefault(); interacting = true; dragT = overT(e.touches[0]); $('dragLabel').innerHTML = fmt(dragT); $('dragLabel').classList.add('show'); kick(); }, { passive:false });
+  ow.addEventListener('touchmove', e => { e.preventDefault(); dragT = overT(e.touches[0]); $('dragLabel').innerHTML = fmt(dragT) + `<em>${fmtDiff(dragT - au.currentTime)}</em>`; kick(); }, { passive:false });
+  ow.addEventListener('touchend', e => { e.preventDefault(); if (dragT !== null) au.currentTime = dragT; dragT = null; interacting = false; $('dragLabel').classList.remove('show'); kick(); }, { passive:false });
+
+  renderRecent();
+})();
+</script>
+</body>
+</html>
