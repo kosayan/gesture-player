@@ -75,7 +75,7 @@
   .tl .ab.off { background:rgba(255,255,255,.08); }
   .tl .ph { position:absolute; top:6px; width:4px; height:38px; margin-left:-2px; border-radius:2px; background:#fff; box-shadow:0 0 6px rgba(255,255,255,.6); }
   .tl .mk { position:absolute; top:0; width:20px; margin-left:-10px; text-align:center; font-size:10px; font-weight:800; color:#000; pointer-events:none; }
-  .tl .mk i { display:block; width:18px; height:14px; margin:0 auto; border-radius:3px; background:var(--mk); line-height:14px; font-style:normal; }
+  .tl .mk i { display:block; width:18px; height:16px; margin:0 auto; border-radius:3px; background:var(--mk); line-height:16px; font-style:normal; }
   .tl .mk b { display:block; width:2px; height:30px; margin:0 auto; background:var(--mk); opacity:.7; }
   .tl .mk.end { top:22px; } .tl .mk.end i { background:var(--b); margin-top:14px; } .tl .mk.end b { display:none; }
   .times { display:flex; justify-content:space-between; font-size:13px; color:var(--mute); font-variant-numeric:tabular-nums; }
@@ -181,6 +181,18 @@
   .sh .mv { display:flex; gap:4px; margin-left:8px; }
   .sh .mv button { width:34px; height:28px; border:0; border-radius:8px; background:#222226; color:rgba(255,255,255,.6); font-size:11px; padding:0; }
   .sh .val { margin-left:auto; }
+  .wrapb { margin-left:8px; height:28px; padding:0 10px; border:0; border-radius:8px; background:#2a2614; color:var(--mk); font-size:12px; font-weight:800; white-space:nowrap; }
+  .wrapb.on { background:var(--mk); color:#000; }
+  /* 折り返し（パッド）表示 */
+  #marks.wrap { display:grid; grid-template-columns:repeat(auto-fill, minmax(60px, 1fr)); gap:6px; overflow:visible; }
+  #marks.wrap .mc { min-width:0; height:48px; padding:3px 4px !important; align-items:center; justify-content:center; text-align:center; gap:0; border-radius:12px; }
+  #marks.wrap .mc .pn { font-size:20px; font-weight:900; line-height:1; color:var(--mk); }
+  #marks.wrap .mc.fixed .pn { color:#fff; font-size:16px; }
+  #marks.wrap .mc .nm, #marks.wrap .mc .tm { display:block; max-width:100%; font-size:10px; line-height:1.2; margin-top:2px; color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+  #marks.wrap .mc .tm { display:none; }
+  #marks.wrap .mc.sel .tm { display:block; } #marks.wrap .mc.sel .nm { display:none; }
+  #marks.wrap .mc.sel .pn, #marks.wrap .mc.sel .nm, #marks.wrap .mc.sel .tm { color:#000; }
+  #marks.wrap .mc.pair::after { content:''; position:absolute; left:10px; right:10px; bottom:3px; height:3px; border-radius:2px; background:var(--b); }
   /* マーカー（選択中・ループ範囲） */
   .mc.sel { background:var(--mk); } .mc.sel b, .mc.sel small { color:#000; }
   .mc.inloop { border-color:var(--a); box-shadow:0 0 0 2px rgba(56,198,255,.5) inset; }
@@ -272,7 +284,7 @@
     <div id="secs">
       <!-- マーカー＋ループ -->
       <div class="sec" data-k="ml">
-        <div class="sh"><span>マーカー＆ループ</span><span class="val" id="loopCnt"></span><span class="mv"><button data-mv="-1" aria-label="上へ">▲</button><button data-mv="1" aria-label="下へ">▼</button></span></div>
+        <div class="sh"><span>マーカー＆ループ</span><span class="val" id="loopCnt"></span><button id="mWrap" class="wrapb">全部表示 ▾</button><span class="mv"><button data-mv="-1" aria-label="上へ">▲</button><button data-mv="1" aria-label="下へ">▼</button></span></div>
         <div class="row">
           <button class="k" id="mPrev">◀ 前</button>
           <button class="k on" id="mAdd" style="flex:1.4">＋ マーカー</button>
@@ -387,7 +399,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-10';
+  const APP_VERSION = '2026.11.17-11';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -739,14 +751,24 @@
     });
     drawTimelineStatic();
   }
+  let mWrap = store.get('mWrap', false);
+  $('mWrap').onclick = () => { mWrap = !mWrap; store.set('mWrap', mWrap); renderMarks(); if (!mWrap) chipScroll(S.sel); };
+  function chipScroll(i){ if (mWrap) return; const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' }); }
   function renderMarks(){
     sortMarks();
     const box = $('marks'); box.innerHTML = '';
+    box.classList.toggle('wrap', mWrap);
+    $('mWrap').textContent = mWrap ? 'たたむ ▴' : '全部表示 ▾'; $('mWrap').classList.toggle('on', mWrap);
     allMarks().forEach((m, i) => {
       const b = document.createElement('button'); b.className = 'mc' + (m.fixed ? ' fixed' : ''); b.dataset.i = i;
       const e = endOf(m);
-      b.innerHTML = (i ? `<i class="no">${i}</i>` : '') + `<div class="st"><b></b><small>${fmt1(m.t)}</small></div>` + (e != null ? `<div class="en"><span>終</span><small>${fmt1(e)}</small></div>` : '');
-      b.querySelector('b').textContent = markName(m, i);
+      if (mWrap) {
+        b.innerHTML = `<span class="pn">${i ? i : '頭'}</span><span class="nm"></span><span class="tm">${fmt1(m.t)}</span>`;
+        if (!m.fixed && m.name) b.querySelector('.nm').textContent = m.name;
+      } else {
+        b.innerHTML = (i ? `<i class="no">${i}</i>` : '') + `<div class="st"><b></b><small>${fmt1(m.t)}</small></div>` + (e != null ? `<div class="en"><span>終</span><small>${fmt1(e)}</small></div>` : '');
+        b.querySelector('b').textContent = markName(m, i);
+      }
       if (e != null) b.classList.add('pair');
       box.appendChild(b);
     });
@@ -769,7 +791,7 @@
       else { const t = Math.max(0, m.t - opt.pre); if (v.paused && opt.count > 0) { seek(t); countIn(() => v.play().catch(()=>{})); } else seek(t); }
       chip(markName(m, i), fmt1(m.t), 800);
     }
-    const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
+    chipScroll(i);
   }
   function startFromA(){
     if (S.a == null) return;
@@ -828,7 +850,7 @@
     renderMarks(); saveState();
     const i = allMarks().findIndex(m => m.t === t);
     chip('＋ ' + markName(allMarks()[i], i), fmt1(t), 800);
-    const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
+    chipScroll(i);
   };
   function curMarkIdx(){ let idx = 0; allMarks().forEach((m, i) => { if (m.t <= v.currentTime + 0.15) idx = i; }); return idx; }
   let followLock = null; // マーカーに飛んだ直後（助走中など）は自動選択を止める
@@ -838,7 +860,7 @@
     const i = curMarkIdx();
     if (i !== S.sel) {
       S.sel = i; S.span = 1; S.nt = 'start'; updateLoopUI();
-      const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
+      chipScroll(i);
     }
   }
   $('mPrev').onclick = () => {
@@ -901,9 +923,22 @@
   let tlDrag = null;
   const tlT = e => { const r = tl.getBoundingClientRect(); return clamp((e.touches[0].clientX - r.left) / r.width, 0, 1) * (v.duration || 0); };
   function tlShow(t){ const d = v.duration || 1; $('tlLabel').style.display = 'block'; $('tlLabel').style.left = clamp(t / d * 100, 6, 94) + '%'; $('tlLabel').textContent = fmt1(t); $('ph').style.left = (t / d * 100) + '%'; $('cur').textContent = fmt1(t); }
-  tl.addEventListener('touchstart', e => { e.preventDefault(); tlDrag = tlT(e); tlShow(tlDrag); }, { passive:false });
-  tl.addEventListener('touchmove', e => { e.preventDefault(); tlDrag = tlT(e); tlShow(tlDrag); }, { passive:false });
-  tl.addEventListener('touchend', e => { e.preventDefault(); if (tlDrag != null) seek(tlDrag); tlDrag = null; $('tlLabel').style.display = 'none'; }, { passive:false });
+  // 番号札タップ → そのマーカーへ（札の近くを軽くタップした時だけ。ドラッグは今まで通りシーク）
+  let tlStart = null, tlMoved = false;
+  function tlTag(x, y){
+    const r = tl.getBoundingClientRect(), d = v.duration || 0; if (!d) return -1;
+    const ry = y - r.top; let best = -1, bd = 22;
+    const L = allMarks();
+    L.forEach((m, i) => {
+      if (i > 0 && ry < 22) { const dx = Math.abs(r.left + m.t / d * r.width - x); if (dx < bd) { bd = dx; best = i; } }
+      const e = endOf(m);
+      if (e != null && ry >= 28) { const dx = Math.abs(r.left + e / d * r.width - x); if (dx < bd) { bd = dx; best = i; } }
+    });
+    return best;
+  }
+  tl.addEventListener('touchstart', e => { e.preventDefault(); const t0 = e.touches[0]; tlStart = { x:t0.clientX, y:t0.clientY, tag:tlTag(t0.clientX, t0.clientY) }; tlMoved = false; if (tlStart.tag < 0) { tlDrag = tlT(e); tlShow(tlDrag); } }, { passive:false });
+  tl.addEventListener('touchmove', e => { e.preventDefault(); const t0 = e.touches[0]; if (tlStart && Math.hypot(t0.clientX - tlStart.x, t0.clientY - tlStart.y) > 8) tlMoved = true; if (tlStart && tlStart.tag >= 0 && !tlMoved) return; tlDrag = tlT(e); tlShow(tlDrag); }, { passive:false });
+  tl.addEventListener('touchend', e => { e.preventDefault(); if (tlStart && tlStart.tag >= 0 && !tlMoved) selectMark(tlStart.tag, true); else if (tlDrag != null) seek(tlDrag); tlDrag = null; tlStart = null; $('tlLabel').style.display = 'none'; }, { passive:false });
 
 
   // ================= 波形 =================
