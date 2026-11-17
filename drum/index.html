@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Drum">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<title>ドラム練習プレイヤー</title>
+<style>
+  :root { --acc:#ffb020; --a:#38c6ff; --b:#5dff9b; --mk:#ffd84a; --bg:#0b0b0d; --card:#17171a; --line:#2a2a2e; --mute:rgba(255,255,255,.55); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  html,body { margin:0; height:100%; background:var(--bg); color:#fff; overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  button, select { font-family:inherit; color:inherit; }
+  button { -webkit-appearance:none; appearance:none; }
+
+  /* ===== レイアウト：縦＝上に映像・下に操作 ／ 横＝左に映像・右に操作 ===== */
+  #app { position:fixed; inset:0; display:grid; grid-template-rows:auto auto 1fr; grid-template-columns:1fr;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  header { display:flex; align-items:center; gap:4px; height:46px; padding:0 6px; }
+  header .ttl { flex:1; min-width:0; font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; }
+  .ib { width:44px; height:44px; border:0; background:none; display:flex; align-items:center; justify-content:center; padding:0; color:rgba(255,255,255,.8); flex-shrink:0; }
+  .ib svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  #vbox { position:relative; background:#000; aspect-ratio:16/9; max-height:34vh; width:100%; overflow:hidden; }
+  #v { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  #v.mirror { transform:scaleX(-1); }
+  #vchip { position:absolute; right:10px; bottom:8px; font-size:20px; font-weight:800; color:rgba(255,255,255,.85); text-shadow:0 1px 4px rgba(0,0,0,.7); opacity:0; transition:opacity .12s; pointer-events:none; text-align:right; font-variant-numeric:tabular-nums; }
+  #vchip small { display:block; font-size:12px; font-weight:600; color:rgba(255,255,255,.7); }
+  #count { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); font-size:96px; font-weight:900; color:var(--acc); pointer-events:none; font-variant-numeric:tabular-nums; }
+  #count.on { display:flex; }
+  #vtap { position:absolute; left:0; top:0; font-size:12px; color:rgba(255,255,255,.5); padding:6px 8px; pointer-events:none; }
+  #side { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 12px calc(env(safe-area-inset-bottom) + 18px); }
+  @media (min-aspect-ratio: 1/1) {
+    #app { grid-template-columns:minmax(0, 1.15fr) minmax(340px, 1fr); grid-template-rows:auto 1fr; }
+    header { grid-column:1 / -1; }
+    #vbox { max-height:none; height:100%; aspect-ratio:auto; grid-row:2; grid-column:1; }
+    #side { grid-row:2; grid-column:2; }
+  }
+
+  /* ===== タイムライン ===== */
+  .tl { position:relative; height:50px; margin:4px 0 2px; touch-action:none; }
+  .tl .track { position:absolute; left:0; right:0; top:20px; height:10px; border-radius:5px; background:#2b2b30; overflow:hidden; }
+  .tl .fill { position:absolute; left:0; top:0; bottom:0; width:0; background:rgba(255,255,255,.35); }
+  .tl .ab { position:absolute; top:12px; height:26px; background:rgba(56,198,255,.22); border-left:3px solid var(--a); border-right:3px solid var(--b); border-radius:4px; display:none; }
+  .tl .ab.on { display:block; }
+  .tl .ab.off { background:rgba(255,255,255,.08); }
+  .tl .ph { position:absolute; top:6px; width:4px; height:38px; margin-left:-2px; border-radius:2px; background:#fff; box-shadow:0 0 6px rgba(255,255,255,.6); }
+  .tl .mk { position:absolute; top:0; width:20px; margin-left:-10px; text-align:center; font-size:10px; font-weight:800; color:#000; pointer-events:none; }
+  .tl .mk i { display:block; width:18px; height:14px; margin:0 auto; border-radius:3px; background:var(--mk); line-height:14px; font-style:normal; }
+  .tl .mk b { display:block; width:2px; height:30px; margin:0 auto; background:var(--mk); opacity:.7; }
+  .times { display:flex; justify-content:space-between; font-size:13px; color:var(--mute); font-variant-numeric:tabular-nums; }
+  .times .now { color:#fff; font-weight:800; font-size:16px; }
+  #tlLabel { position:absolute; top:-26px; transform:translateX(-50%); font-size:13px; font-weight:800; background:#fff; color:#000; padding:2px 8px; border-radius:6px; display:none; white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+  /* ===== ボタン共通 ===== */
+  .row { display:flex; gap:8px; align-items:stretch; }
+  .row + .row { margin-top:8px; }
+  .k { flex:1; min-width:0; height:52px; border:0; border-radius:14px; background:var(--card); font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .k:active { filter:brightness(1.35); }
+  .k.sm { height:42px; font-size:14px; border-radius:12px; }
+  .k.big { height:64px; font-size:20px; }
+  .k.play { flex:1.4; height:64px; background:#fff; color:#000; }
+  .k.play svg { width:30px; height:30px; fill:currentColor; }
+  .k.on { background:var(--acc); color:#000; }
+  .k.a { color:var(--a); } .k.b { color:var(--b); }
+  .k.a.set { background:var(--a); color:#000; } .k.b.set { background:var(--b); color:#000; }
+  .k.loop.on { background:var(--acc); color:#000; }
+  .k small { font-size:11px; font-weight:700; opacity:.75; }
+  .sec { background:#111114; border:1px solid var(--line); border-radius:18px; padding:12px; margin-top:10px; }
+  .sh { display:flex; align-items:center; justify-content:space-between; margin:0 2px 10px; font-size:13px; font-weight:800; color:var(--mute); letter-spacing:.04em; }
+  .sh .val { color:#fff; font-size:13px; }
+
+  /* 速度 */
+  .rate { flex:1.6; font-size:28px; font-weight:900; background:#202024; }
+  .presets { display:flex; gap:6px; margin-top:8px; }
+  .presets button { flex:1; height:38px; border:0; border-radius:10px; background:var(--card); font-size:13px; font-weight:800; }
+  .presets button.on { background:var(--acc); color:#000; }
+
+  /* マーカー */
+  #marks { display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:2px 0 4px; margin-top:8px; scrollbar-width:none; }
+  #marks::-webkit-scrollbar { display:none; }
+  .mc { flex:0 0 auto; min-width:76px; height:58px; border:0; border-radius:14px; background:#241f0e; border:2px solid rgba(255,216,74,.35); padding:4px 12px; text-align:left; }
+  .mc b { display:block; font-size:15px; font-weight:900; color:var(--mk); white-space:nowrap; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  .mc small { display:block; font-size:12px; color:rgba(255,255,255,.7); margin-top:2px; font-variant-numeric:tabular-nums; }
+  .mc.cur { background:var(--mk); } .mc.cur b, .mc.cur small { color:#000; }
+  .hint { font-size:12px; color:var(--mute); margin-top:6px; line-height:1.6; }
+
+  /* 練習モード */
+  .opt { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 2px; border-top:1px solid var(--line); font-size:14px; font-weight:700; }
+  .opt:first-of-type { border-top:0; }
+  .opt select { background:#222226; border:0; border-radius:10px; padding:9px 10px; font-size:14px; font-weight:700; }
+  .bpm { display:flex; align-items:center; gap:6px; }
+  .bpm .k { width:44px; flex:none; height:40px; }
+  .bpm b { min-width:52px; text-align:center; font-size:18px; font-variant-numeric:tabular-nums; }
+  .sw { width:52px; height:30px; border-radius:15px; background:#333; border:0; position:relative; flex:none; }
+  .sw::after { content:''; position:absolute; left:3px; top:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .15s; }
+  .sw.on { background:var(--acc); } .sw.on::after { left:25px; }
+  .trn { display:none; gap:6px; flex-wrap:wrap; padding:4px 0 2px; }
+  .trn.on { display:flex; }
+  .trn label { flex:1 1 45%; font-size:12px; color:var(--mute); font-weight:700; display:flex; flex-direction:column; gap:4px; }
+
+  /* アクションシート */
+  #msheet, #sheet { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.5); display:none; align-items:flex-end; }
+  #msheet.open, #sheet.open { display:flex; }
+  .panel { width:100%; max-width:520px; margin:0 auto; background:#1c1c1e; border-radius:20px 20px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); max-height:85%; overflow:auto; }
+  .panel h3 { margin:2px 4px 12px; font-size:16px; }
+  .panel .k { margin-top:8px; width:100%; flex:none; }
+  .panel .k.danger { color:#ff6b6b; }
+  .set { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 2px; border-bottom:1px solid #2c2c2e; font-size:15px; }
+  .set select { background:#2c2c2e; border:0; border-radius:8px; padding:8px 10px; font-size:15px; }
+
+  /* ホーム */
+  #home { position:fixed; inset:0; z-index:30; background:var(--bg); overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 30px) calc(env(safe-area-inset-left) + 18px); }
+  #home h1 { font-size:24px; margin:0 0 6px; }
+  #home .sub { color:#999; font-size:13px; line-height:1.8; margin:0 0 18px; }
+  .btn { width:100%; border:0; border-radius:16px; padding:16px; font-size:17px; font-weight:800; background:var(--acc); color:#000; }
+  .btn.ghost { background:#222226; color:#fff; }
+  #home h2 { font-size:15px; margin:26px 0 10px; color:#ccc; }
+  .card { display:flex; align-items:center; gap:10px; background:var(--card); border-radius:14px; padding:12px 6px 12px 14px; margin-bottom:8px; }
+  .card .nm { flex:1; min-width:0; }
+  .card .nm b { display:block; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .nm small { display:block; font-size:12px; color:#888; margin-top:3px; }
+  .card .del { width:42px; height:42px; border:0; background:none; color:#777; font-size:16px; }
+  .empty { color:#777; font-size:13px; line-height:1.7; }
+  .ver { color:#666; font-size:11px; margin-top:8px; text-align:center; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <button class="ib" id="homeBtn" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <button class="ib" id="mirBtn" aria-label="左右反転"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7L3 12l5 5V7z"/><path d="M16 7l5 5-5 5V7z"/></svg></button>
+    <div class="ttl" id="ttl">—</div>
+    <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </header>
+
+  <div id="vbox">
+    <video id="v" playsinline webkit-playsinline preload="auto"></video>
+    <div id="vtap">タップで再生・停止</div>
+    <div id="count">1</div>
+    <div id="vchip"></div>
+  </div>
+
+  <div id="side">
+    <!-- タイムライン -->
+    <div class="tl" id="tl">
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="ab" id="abBar"></div>
+      <div id="mkLayer"></div>
+      <div class="ph" id="ph"></div>
+      <div id="tlLabel"></div>
+    </div>
+    <div class="times"><span class="now" id="cur">0:00.0</span><span id="loopInfo"></span><span id="dur">0:00</span></div>
+
+    <!-- 再生 -->
+    <div class="row" style="margin-top:10px">
+      <button class="k big" id="bBig">−5</button>
+      <button class="k big" id="bSmall">−2</button>
+      <button class="k play" id="playBtn" aria-label="再生"></button>
+      <button class="k big" id="fSmall">+2</button>
+      <button class="k big" id="fBig">+5</button>
+    </div>
+
+    <!-- ループ -->
+    <div class="sec">
+      <div class="sh"><span>A-B ループ</span><span class="val" id="loopCnt"></span></div>
+      <div class="row">
+        <button class="k big a" id="aBtn">A<small>ここ</small></button>
+        <button class="k big b" id="bBtn">B<small>ここ</small></button>
+        <button class="k big loop" id="loopBtn">ループ<small>OFF</small></button>
+      </div>
+      <div class="row">
+        <button class="k sm a" id="aM">A −0.1</button>
+        <button class="k sm a" id="aP">A +0.1</button>
+        <button class="k sm b" id="bM">B −0.1</button>
+        <button class="k sm b" id="bP">B +0.1</button>
+      </div>
+      <div class="row">
+        <button class="k sm" id="toA">Aへ戻る</button>
+        <button class="k sm" id="abClr">A-Bを消す</button>
+      </div>
+    </div>
+
+    <!-- マーカー -->
+    <div class="sec">
+      <div class="sh"><span>マーカー</span><span class="val" id="mkCnt">0個</span></div>
+      <div class="row">
+        <button class="k" id="mPrev">◀ 前へ</button>
+        <button class="k on" id="mAdd" style="flex:1.5">＋ 今の位置に追加</button>
+        <button class="k" id="mNext">次へ ▶</button>
+      </div>
+      <div id="marks"></div>
+      <div class="hint">タップでその位置へ。長押しで「ここから次までループ」「名前」「削除」</div>
+    </div>
+
+    <!-- 速度 -->
+    <div class="sec">
+      <div class="sh"><span>速度</span><span class="val" id="pitchInfo">音程そのまま</span></div>
+      <div class="row">
+        <button class="k big" id="rDown">−5%</button>
+        <button class="k big rate" id="rVal">100%</button>
+        <button class="k big" id="rUp">+5%</button>
+      </div>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <!-- 練習モード -->
+    <div class="sec">
+      <div class="sh"><span>練習モード</span></div>
+      <div class="opt"><span>カウントイン</span>
+        <select id="optCount"><option value="0">なし</option><option value="2">2拍</option><option value="4">4拍</option><option value="8">8拍</option></select></div>
+      <div class="opt"><span>テンポ（BPM）</span>
+        <div class="bpm"><button class="k" id="bpmM">−</button><b id="bpmV">120</b><button class="k" id="bpmP">＋</button><button class="k" id="tapBtn" style="width:64px">タップ</button></div></div>
+      <div class="opt"><span>助走（少し前から）</span>
+        <select id="optPre"><option value="0">なし</option><option value="0.5">0.5秒</option><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
+      <div class="opt"><span>スピードトレーナー</span><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
+      <div class="trn" id="trn">
+        <label>開始<select id="tStart"></select></label>
+        <label>上げ幅<select id="tStep"><option value="1">+1%</option><option value="2">+2%</option><option value="5" selected>+5%</option><option value="10">+10%</option></select></label>
+        <label>何回ごと<select id="tEvery"><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option><option value="4">4回</option><option value="5">5回</option></select></label>
+        <label>最大<select id="tMax"></select></label>
+      </div>
+      <div class="hint">カウントイン：ループの頭と▶のたびにクリックが鳴る（今の速度に合わせたテンポ）。スピードトレーナー：ループするたびに少しずつ速くなる</div>
+    </div>
+  </div>
+</div>
+
+<div id="msheet"><div class="panel">
+  <h3 id="msTitle">マーカー</h3>
+  <button class="k" id="msLoop">ここから次のマーカーまでループ</button>
+  <button class="k" id="msA">ここをAにする</button>
+  <button class="k" id="msB">ここをBにする</button>
+  <button class="k" id="msHere">今の位置に動かす</button>
+  <button class="k" id="msName">名前を変える</button>
+  <button class="k danger" id="msDel">削除</button>
+  <button class="k" id="msCancel" style="background:#2c2c2e">キャンセル</button>
+</div></div>
+
+<div id="sheet"><div class="panel">
+  <h3>設定</h3>
+  <div class="set"><span>小さいスキップ</span><select id="optS"><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
+  <div class="set"><span>大きいスキップ</span><select id="optL"><option value="5">5秒</option><option value="10">10秒</option><option value="15">15秒</option><option value="30">30秒</option></select></div>
+  <div class="set"><span>速度を変えても音程を保つ</span><select id="optPitch"><option value="1">保つ</option><option value="0">保たない</option></select></div>
+  <div class="set"><span>練習中は画面を消さへん</span><select id="optWake"><option value="1">オン</option><option value="0">オフ</option></select></div>
+  <div class="set"><span>最近の動画を保存する数</span><select id="optKeep"><option value="0">保存しない</option><option value="10">10本</option><option value="30">30本</option><option value="100">100本</option><option value="9999">上限なし</option></select></div>
+  <p class="empty" style="margin:12px 2px 0">マーカー・A-B・速度・テンポは動画ごとに自動で保存されるで。音声ファイルも開ける</p>
+  <button class="k upd" style="background:#2c2c2e">⟳ アプリを最新版に更新</button>
+  <div class="ver"></div>
+  <button class="k" id="closeSheet" style="background:var(--acc); color:#000">閉じる</button>
+</div></div>
+
+<div id="home">
+  <h1>🥁 ドラム練習プレイヤー</h1>
+  <p class="sub">速度を落とす・A-Bで繰り返す・マーカーで一発ジャンプ。<br>カウントインとスピードトレーナー付き。動画も音声もOK</p>
+  <button class="btn" id="openBtn">＋ 練習する動画を選ぶ</button>
+  <input type="file" id="file" accept="video/*,audio/*" multiple hidden>
+  <h2>最近の練習（タップですぐ再開）</h2>
+  <div id="recent"></div>
+  <div style="margin-top:22px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
+  <div class="ver"></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const v = $('v');
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
+  const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
+
+  const APP_VERSION = '2026.11.17-1';
+  document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
+  document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
+    const label = btn.textContent; btn.textContent = '確認中…';
+    try {
+      const html = await (await fetch('./?check=' + Date.now(), { cache:'no-store' })).text();
+      const m = html.match(/APP_VERSION = '([^']+)'/);
+      if (m && m[1] !== APP_VERSION) { btn.textContent = '更新中…'; saveState(); location.replace('./?v=' + Date.now()); return; }
+      btn.textContent = m ? '✓ 最新版やで' : '確認できへんかった';
+    } catch(e) { btn.textContent = '通信できへんかった'; }
+    setTimeout(() => btn.textContent = label, 2000);
+  }));
+
+  // ================= 全体の設定 =================
+  const store = {
+    get(k, d){ try { const x = localStorage.getItem('gdp_' + k); return x === null ? d : JSON.parse(x); } catch(e){ return d; } },
+    set(k, val){ try { localStorage.setItem('gdp_' + k, JSON.stringify(val)); } catch(e){} },
+    del(k){ try { localStorage.removeItem('gdp_' + k); } catch(e){} }
+  };
+  const opt = { s:store.get('s', 2), l:store.get('l', 5), pitch:store.get('pitch', 1), wake:store.get('wake', 1), keep:store.get('keep', 30),
+    count:store.get('count', 0), pre:store.get('pre', 0) };
+  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optCount','count'],['optPre','pre']];
+  for (const [id, k] of optSel) { $(id).value = opt[k]; $(id).addEventListener('change', e => { opt[k] = Number(e.target.value); store.set(k, opt[k]); applyOpts(); }); }
+  function applyOpts(){
+    $('bSmall').textContent = '−' + opt.s; $('fSmall').textContent = '+' + opt.s;
+    $('bBig').textContent = '−' + opt.l; $('fBig').textContent = '+' + opt.l;
+    try { v.preservesPitch = !!opt.pitch; v.webkitPreservesPitch = !!opt.pitch; } catch(e){}
+    $('pitchInfo').textContent = opt.pitch ? '音程そのまま' : '音程も変わる';
+    if (!opt.wake) releaseWake(); else if (!v.paused) requestWake();
+  }
+  $('setBtn').onclick = () => $('sheet').classList.add('open');
+  $('closeSheet').onclick = () => $('sheet').classList.remove('open');
+  $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('sheet').classList.remove('open'); });
+
+  // ================= 動画ごとの状態（マーカー・A-B・速度・テンポ） =================
+  let curId = null, url = null, session = [];
+  const blank = () => ({ marks:[], a:null, b:null, loop:false, rate:1, bpm:120, mirror:false, pos:0 });
+  let S = blank();
+  function saveState(){ if (!curId) return; S.pos = v.currentTime || S.pos; store.set('st_' + curId, S); }
+  function loadState(id){ S = Object.assign(blank(), store.get('st_' + id, {})); }
+
+  // ================= 保存（IndexedDB） =================
+  let dbp = null;
+  function db(){
+    if (!dbp) dbp = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open('gdp', 1);
+        r.onupgradeneeded = () => { const d = r.result; ['meta','blobs'].forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath:'id' }); }); };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('blocked'));
+      } catch(e){ rej(e); }
+    }).catch(e => { dbp = null; throw e; });
+    return dbp;
+  }
+  async function tx(n, mode, fn){
+    const d = await db();
+    return new Promise((res, rej) => { const t = d.transaction(n, mode), s = t.objectStore(n); let out; const r = fn(s); if (r) r.onsuccess = () => out = r.result;
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort')); });
+  }
+  const get = (n, id) => tx(n, 'readonly', s => s.get(id)).catch(() => null);
+  const put = (n, o) => tx(n, 'readwrite', s => s.put(o));
+  const del = (n, id) => tx(n, 'readwrite', s => s.delete(id)).catch(() => {});
+  const metaAll = () => tx('meta', 'readonly', s => s.getAll()).catch(() => []);
+  async function remove(id){ await del('meta', id); del('blobs', id); }
+  async function trim(){ const all = (await metaAll()).sort((a, b) => b.at - a.at); for (const m of all.slice(opt.keep)) await remove(m.id); }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+  const saving = new Set();
+  async function saveFile(f, id, addedAt){
+    if (!opt.keep) return;
+    const old = await get('meta', id);
+    if (old && old.saved) { put('meta', Object.assign(old, { at:Date.now() })).catch(()=>{}); return; }
+    await put('meta', { id, name:f.name, size:f.size, at:addedAt || Date.now(), added:(old && old.added) || addedAt || Date.now(), saved:false }).catch(()=>{});
+    await trim();
+    saving.add(id);
+    try { await put('blobs', { id, blob:f }); const m = await get('meta', id); if (m) await put('meta', Object.assign(m, { saved:true })); else del('blobs', id); }
+    catch(e) { del('meta', id); }
+    saving.delete(id);
+    if ($('home').style.display !== 'none') renderRecent();
+  }
+  async function renderRecent(){
+    const box = $('recent'), all = (await metaAll()).sort((a, b) => b.at - a.at);
+    if (!opt.keep) { box.innerHTML = '<div class="empty">設定で「保存しない」になってるで</div>'; return; }
+    if (!all.length) { box.innerHTML = '<div class="empty">まだないで。一回開いた動画がここに並ぶ</div>'; return; }
+    box.innerHTML = '';
+    for (const m of all) {
+      const st = store.get('st_' + m.id, null);
+      const info = st ? `マーカー${(st.marks || []).length}個・${Math.round((st.rate || 1) * 100)}%` + (st.a != null && st.b != null ? `・A-B ${fmt(st.a)}〜${fmt(st.b)}` : '') : '';
+      const el = document.createElement('div'); el.className = 'card';
+      el.innerHTML = `<div class="nm"><b></b><small></small></div><button class="del" aria-label="削除">✕</button>`;
+      el.querySelector('b').textContent = m.name;
+      el.querySelector('small').textContent = (m.saved ? '' : '保存中… ') + info;
+      el.querySelector('.del').addEventListener('click', async e => { e.stopPropagation(); el.remove(); await remove(m.id); });
+      el.addEventListener('click', () => openRecord(m));
+      box.appendChild(el);
+    }
+  }
+
+  // ================= 開く =================
+  const fileId = f => f.name + '_' + f.size + '_' + (f.lastModified || 0);
+  const natural = new Intl.Collator('ja', { numeric:true, sensitivity:'base' });
+  $('openBtn').onclick = () => $('file').click();
+  $('file').addEventListener('change', e => {
+    const files = Array.from(e.target.files || []); e.target.value = '';
+    if (!files.length) return;
+    files.sort((a, b) => natural.compare(a.name, b.name));
+    session = files.map(f => ({ id:fileId(f), file:f, name:f.name }));
+    open(files[0], fileId(files[0]), files[0].name);
+    (async () => { const base = Date.now(); for (let i = 0; i < files.length; i++) await saveFile(files[i], fileId(files[i]), base - i); })();
+  });
+  async function openRecord(m){
+    if (saving.has(m.id)) return;
+    const r = await get('blobs', m.id);
+    if (!r || !r.blob) { await remove(m.id); renderRecent(); return; }
+    open(r.blob, m.id, m.name);
+    put('meta', Object.assign(m, { at:Date.now() })).catch(()=>{});
+  }
+  function open(blob, id, name){
+    if (curId && curId !== id) saveState();
+    curId = id; loadState(id);
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(blob);
+    v.src = url;
+    $('ttl').textContent = name;
+    $('home').style.display = 'none';
+    v.classList.toggle('mirror', !!S.mirror);
+    loops = 0; trainerOff();
+    applyRate(); applyOpts(); renderMarks(); updateLoopUI(); $('bpmV').textContent = S.bpm;
+    try { if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title:name, artist:'ドラム練習プレイヤー' });
+      navigator.mediaSession.setActionHandler('play', () => playWithCount()); navigator.mediaSession.setActionHandler('pause', () => v.pause()); } } catch(e){}
+    kick();
+  }
+  v.addEventListener('loadedmetadata', () => {
+    if (S.pos > 1 && S.pos < v.duration - 1) v.currentTime = S.pos;
+    $('dur').textContent = fmt(v.duration);
+    renderMarks(); updateLoopUI(); kick();
+  });
+  $('homeBtn').onclick = () => { saveState(); v.pause(); cancelCount(); releaseWake(); $('home').style.display = 'block'; renderRecent(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); else if (!v.paused) requestWake(); });
+  window.addEventListener('pagehide', saveState);
+  let lastSave = 0;
+  v.addEventListener('timeupdate', () => { if (Date.now() - lastSave > 2000) { saveState(); lastSave = Date.now(); } });
+
+  // ================= 画面を消さへん（Wake Lock） =================
+  let wake = null;
+  async function requestWake(){ if (!opt.wake || !('wakeLock' in navigator) || wake) return; try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => wake = null); } catch(e){} }
+  function releaseWake(){ if (wake) { wake.release().catch(()=>{}); wake = null; } }
+
+  // ================= 再生・スキップ =================
+  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>';
+  $('playBtn').innerHTML = ICON_PLAY;
+  v.addEventListener('play', () => { $('playBtn').innerHTML = ICON_PAUSE; requestWake(); kick(); });
+  v.addEventListener('pause', () => { if (!counting) $('playBtn').innerHTML = ICON_PLAY; saveState(); });
+  function togglePlay(){ if (counting) { cancelCount(); return; } v.paused ? playWithCount() : v.pause(); }
+  $('playBtn').onclick = togglePlay;
+  $('vbox').addEventListener('click', togglePlay);
+  const seek = t => { v.currentTime = clamp(t, 0, v.duration || 0); kick(); };
+  const skipBy = d => { seek(v.currentTime + d); chip((d > 0 ? '+' : '−') + Math.abs(d) + '秒', fmt1(v.currentTime), 700); };
+  $('bBig').onclick = () => skipBy(-opt.l); $('bSmall').onclick = () => skipBy(-opt.s);
+  $('fSmall').onclick = () => skipBy(opt.s); $('fBig').onclick = () => skipBy(opt.l);
+  let chipT = null;
+  function chip(main, sub, ms){ $('vchip').innerHTML = main + (sub ? `<small>${sub}</small>` : ''); $('vchip').style.opacity = 1; clearTimeout(chipT); chipT = setTimeout(() => $('vchip').style.opacity = 0, ms || 900); }
+  $('mirBtn').onclick = () => { S.mirror = !S.mirror; v.classList.toggle('mirror', S.mirror); $('mirBtn').style.color = S.mirror ? 'var(--acc)' : ''; saveState(); chip(S.mirror ? '左右反転' : '反転なし', '', 800); };
+
+  // ================= 速度 =================
+  const PRESETS = [50, 60, 70, 75, 80, 90, 100];
+  $('presets').innerHTML = PRESETS.map(p => `<button data-p="${p}">${p}</button>`).join('');
+  function applyRate(){
+    S.rate = clamp(Math.round(S.rate * 100) / 100, 0.25, 2);
+    v.playbackRate = S.rate; v.defaultPlaybackRate = S.rate;
+    $('rVal').textContent = Math.round(S.rate * 100) + '%';
+    document.querySelectorAll('#presets button').forEach(b => b.classList.toggle('on', Number(b.dataset.p) === Math.round(S.rate * 100)));
+    $('mirBtn').style.color = S.mirror ? 'var(--acc)' : '';
+  }
+  const setRate = r => { S.rate = r; applyRate(); saveState(); chip(Math.round(S.rate * 100) + '%', '速度', 700); };
+  $('rDown').onclick = () => setRate(S.rate - 0.05);
+  $('rUp').onclick = () => setRate(S.rate + 0.05);
+  $('rVal').onclick = () => setRate(1);
+  $('presets').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setRate(Number(b.dataset.p) / 100); });
+
+  // ================= A-B ループ =================
+  let loops = 0;
+  function updateLoopUI(){
+    const has = S.a != null && S.b != null;
+    $('aBtn').classList.toggle('set', S.a != null); $('bBtn').classList.toggle('set', S.b != null);
+    $('aBtn').innerHTML = 'A<small>' + (S.a != null ? fmt1(S.a) : 'ここ') + '</small>';
+    $('bBtn').innerHTML = 'B<small>' + (S.b != null ? fmt1(S.b) : 'ここ') + '</small>';
+    $('loopBtn').classList.toggle('on', S.loop && has);
+    $('loopBtn').innerHTML = 'ループ<small>' + (S.loop && has ? 'ON' : 'OFF') + '</small>';
+    $('loopCnt').textContent = S.loop && has ? `${loops}回目` + (trn.on ? `・${Math.round(S.rate * 100)}%` : '') : '';
+    $('loopInfo').textContent = has ? `${fmt1(S.a)} 〜 ${fmt1(S.b)}` : '';
+    drawTimelineStatic();
+  }
+  function setA(t){ S.a = Math.max(0, t); if (S.b != null && S.b <= S.a + 0.2) S.b = null; loops = 0; updateLoopUI(); saveState(); }
+  function setB(t){
+    if (S.a == null) S.a = 0;
+    if (t <= S.a + 0.2) { chip('Aより後ろにしてな', '', 1000); return; }
+    S.b = t; S.loop = true; loops = 0; updateLoopUI(); saveState();
+  }
+  $('aBtn').onclick = () => { setA(v.currentTime); chip('A', fmt1(S.a), 700); };
+  $('bBtn').onclick = () => { setB(v.currentTime); if (S.b != null) { chip('ループ開始', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 1000); startFromA(); } };
+  $('loopBtn').onclick = () => {
+    if (S.a == null || S.b == null) { chip('先にAとBを決めてな', '', 1000); return; }
+    S.loop = !S.loop; loops = 0; updateLoopUI(); saveState();
+    if (S.loop && (v.currentTime > S.b || v.currentTime < S.a - opt.pre - 0.5)) startFromA();
+  };
+  const nudge = (k, d) => {
+    if (S[k] == null) return;
+    S[k] = Math.max(0, Math.round((S[k] + d) * 10) / 10);
+    if (S.a != null && S.b != null && S.b <= S.a + 0.2) S[k] -= d;
+    updateLoopUI(); saveState(); chip(k.toUpperCase() + ' ' + fmt1(S[k]), '', 600);
+    if (k === 'a' && v.paused) seek(S.a);
+  };
+  $('aM').onclick = () => nudge('a', -0.1); $('aP').onclick = () => nudge('a', 0.1);
+  $('bM').onclick = () => nudge('b', -0.1); $('bP').onclick = () => nudge('b', 0.1);
+  $('toA').onclick = () => { if (S.a != null) startFromA(); };
+  $('abClr').onclick = () => { S.a = S.b = null; S.loop = false; loops = 0; updateLoopUI(); saveState(); };
+  function startFromA(){
+    const t = Math.max(0, S.a - opt.pre);
+    if (opt.count > 0) { v.pause(); seek(t); countIn(() => v.play().catch(()=>{})); }
+    else { seek(t); if (v.paused) v.play().catch(()=>{}); }
+  }
+  function onLoopEnd(){
+    loops++;
+    trainerStep();
+    updateLoopUI();
+    startFromA();
+  }
+
+  // ================= スピードトレーナー =================
+  const trn = { on:false };
+  const pctOpts = (from, to) => Array.from({ length:(to - from) / 5 + 1 }, (_, i) => `<option value="${from + i * 5}">${from + i * 5}%</option>`).join('');
+  $('tStart').innerHTML = pctOpts(40, 100); $('tStart').value = 70;
+  $('tMax').innerHTML = pctOpts(60, 150); $('tMax').value = 100;
+  function trainerOff(){ trn.on = false; $('trnSw').classList.remove('on'); $('trn').classList.remove('on'); }
+  $('trnSw').onclick = () => {
+    trn.on = !trn.on; $('trnSw').classList.toggle('on', trn.on); $('trn').classList.toggle('on', trn.on);
+    if (trn.on) { setRate(Number($('tStart').value) / 100); loops = 0; if (S.a == null || S.b == null) chip('A-Bループと一緒に使ってな', '', 1500); }
+    updateLoopUI();
+  };
+  $('tStart').addEventListener('change', () => { if (trn.on) { setRate(Number($('tStart').value) / 100); loops = 0; updateLoopUI(); } });
+  function trainerStep(){
+    if (!trn.on) return;
+    const every = Number($('tEvery').value), step = Number($('tStep').value) / 100, max = Number($('tMax').value) / 100;
+    if (loops % every === 0 && S.rate < max - 0.001) { S.rate = Math.min(max, S.rate + step); applyRate(); saveState(); chip('▲ ' + Math.round(S.rate * 100) + '%', 'スピードアップ', 1200); }
+  }
+
+  // ================= カウントイン（クリック音は別の音声経路で鳴らす：動画の音には影響なし） =================
+  let actx = null, counting = false, countTimers = [];
+  function click(at, accent){
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = accent ? 1600 : 1000;
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.6, at + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+    o.connect(g); g.connect(actx.destination); o.start(at); o.stop(at + 0.08);
+  }
+  function countIn(done){
+    try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch(e){ done(); return; }
+    cancelCount();
+    counting = true; $('playBtn').innerHTML = ICON_PAUSE;
+    const n = opt.count, beat = 60 / (S.bpm * S.rate), t0 = actx.currentTime + 0.08;
+    for (let i = 0; i < n; i++) {
+      click(t0 + i * beat, i % 4 === 0);
+      countTimers.push(setTimeout(() => { $('count').textContent = (i % 4) + 1; $('count').classList.add('on'); }, (0.08 + i * beat) * 1000));
+    }
+    countTimers.push(setTimeout(() => { $('count').classList.remove('on'); counting = false; done(); }, (0.08 + n * beat) * 1000));
+  }
+  function cancelCount(){ countTimers.forEach(clearTimeout); countTimers = []; counting = false; $('count').classList.remove('on'); if (v.paused) $('playBtn').innerHTML = ICON_PLAY; }
+  function playWithCount(){
+    if (opt.count > 0) countIn(() => v.play().catch(()=>{}));
+    else v.play().catch(()=>{});
+  }
+  // テンポ
+  const setBpm = b => { S.bpm = clamp(Math.round(b), 30, 300); $('bpmV').textContent = S.bpm; saveState(); };
+  $('bpmM').onclick = () => setBpm(S.bpm - 1); $('bpmP').onclick = () => setBpm(S.bpm + 1);
+  let taps = [];
+  $('tapBtn').onclick = () => {
+    const now = performance.now();
+    if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
+    taps.push(now); if (taps.length > 6) taps.shift();
+    if (taps.length >= 2) { const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); setBpm(60000 / avg); }
+    chip('BPM ' + S.bpm, taps.length < 2 ? 'もう何回かタップ' : '曲に合わせてタップ', 900);
+  };
+
+  // ================= マーカー =================
+  let msIdx = -1;
+  function sortMarks(){ S.marks.sort((a, b) => a.t - b.t); }
+  function curMarkIdx(){ let idx = -1; S.marks.forEach((m, i) => { if (m.t <= v.currentTime + 0.15) idx = i; }); return idx; }
+  function renderMarks(){
+    sortMarks();
+    const box = $('marks'); box.innerHTML = '';
+    S.marks.forEach((m, i) => {
+      const b = document.createElement('button'); b.className = 'mc'; b.dataset.i = i;
+      b.innerHTML = `<b></b><small>${fmt1(m.t)}</small>`;
+      b.querySelector('b').textContent = m.name || ('M' + (i + 1));
+      box.appendChild(b);
+    });
+    $('mkCnt').textContent = S.marks.length + '個';
+    drawTimelineStatic(); markCur();
+  }
+  function markCur(){ const i = curMarkIdx(); document.querySelectorAll('.mc').forEach((b, j) => b.classList.toggle('cur', j === i)); }
+  function jumpMark(i){
+    const m = S.marks[i]; if (!m) return;
+    const t = Math.max(0, m.t - opt.pre);
+    if (v.paused && opt.count > 0) { seek(t); countIn(() => v.play().catch(()=>{})); } else seek(t);
+    chip(m.name || ('M' + (i + 1)), fmt1(m.t), 800);
+    const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
+  }
+  $('mAdd').onclick = () => {
+    const t = Math.round(v.currentTime * 10) / 10;
+    if (S.marks.some(m => Math.abs(m.t - t) < 0.3)) { chip('もうそこにあるで', '', 800); return; }
+    S.marks.push({ t, name:'' }); sortMarks();
+    // 名前が未設定のものは順番どおりに振り直す
+    renderMarks(); saveState();
+    const i = S.marks.findIndex(m => m.t === t);
+    chip('＋ ' + (S.marks[i].name || 'M' + (i + 1)), fmt1(t), 800);
+    const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
+  };
+  $('mPrev').onclick = () => {
+    if (!S.marks.length) return;
+    let i = curMarkIdx();
+    if (i >= 0 && v.currentTime - S.marks[i].t < 1.2) i--; // 直前に飛んだばかりならさらに前へ
+    jumpMark(Math.max(0, i));
+  };
+  $('mNext').onclick = () => { const i = S.marks.findIndex(m => m.t > v.currentTime + 0.2); if (i >= 0) jumpMark(i); else chip('最後のマーカーやで', '', 800); };
+  // タップ＝ジャンプ、長押し＝メニュー
+  let lp = null, lpFired = false;
+  $('marks').addEventListener('touchstart', e => {
+    const b = e.target.closest('.mc'); if (!b) return;
+    lpFired = false; clearTimeout(lp);
+    lp = setTimeout(() => { lpFired = true; openMs(Number(b.dataset.i)); }, 480);
+  }, { passive:true });
+  $('marks').addEventListener('touchmove', () => clearTimeout(lp), { passive:true });
+  $('marks').addEventListener('touchend', () => clearTimeout(lp));
+  $('marks').addEventListener('click', e => { const b = e.target.closest('.mc'); if (!b) return; if (lpFired) { lpFired = false; return; } jumpMark(Number(b.dataset.i)); });
+  $('marks').addEventListener('contextmenu', e => e.preventDefault());
+  function openMs(i){ msIdx = i; const m = S.marks[i]; $('msTitle').textContent = (m.name || 'M' + (i + 1)) + '（' + fmt1(m.t) + '）'; $('msheet').classList.add('open'); }
+  const closeMs = () => $('msheet').classList.remove('open');
+  $('msheet').addEventListener('click', e => { if (e.target.id === 'msheet') closeMs(); });
+  $('msCancel').onclick = closeMs;
+  $('msLoop').onclick = () => {
+    const m = S.marks[msIdx], n = S.marks[msIdx + 1];
+    S.a = m.t; S.b = n ? n.t : v.duration; S.loop = true; loops = 0; updateLoopUI(); saveState(); closeMs();
+    chip('ループ', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 1000); startFromA();
+  };
+  $('msA').onclick = () => { setA(S.marks[msIdx].t); closeMs(); };
+  $('msB').onclick = () => { setB(S.marks[msIdx].t); closeMs(); };
+  $('msHere').onclick = () => { S.marks[msIdx].t = Math.round(v.currentTime * 10) / 10; renderMarks(); saveState(); closeMs(); };
+  $('msName').onclick = () => {
+    const m = S.marks[msIdx], nm = prompt('マーカーの名前（例：サビ、フィル、Aメロ）', m.name || '');
+    if (nm !== null) { m.name = nm.trim().slice(0, 12); renderMarks(); saveState(); }
+    closeMs();
+  };
+  $('msDel').onclick = () => { S.marks.splice(msIdx, 1); renderMarks(); saveState(); closeMs(); };
+
+  // ================= タイムライン =================
+  const tl = $('tl');
+  function drawTimelineStatic(){
+    const d = v.duration || 0, lay = $('mkLayer'); lay.innerHTML = '';
+    if (d) S.marks.forEach((m, i) => { const el = document.createElement('div'); el.className = 'mk'; el.style.left = (m.t / d * 100) + '%'; el.innerHTML = `<i>${i + 1}</i><b></b>`; lay.appendChild(el); });
+    const ab = $('abBar');
+    if (d && S.a != null && S.b != null) { ab.style.left = (S.a / d * 100) + '%'; ab.style.width = ((S.b - S.a) / d * 100) + '%'; ab.className = 'ab on' + (S.loop ? '' : ' off'); }
+    else if (d && S.a != null) { ab.style.left = (S.a / d * 100) + '%'; ab.style.width = '0'; ab.className = 'ab on off'; }
+    else ab.className = 'ab';
+  }
+  let tlDrag = null;
+  const tlT = e => { const r = tl.getBoundingClientRect(); return clamp((e.touches[0].clientX - r.left) / r.width, 0, 1) * (v.duration || 0); };
+  function tlShow(t){ const d = v.duration || 1; $('tlLabel').style.display = 'block'; $('tlLabel').style.left = clamp(t / d * 100, 6, 94) + '%'; $('tlLabel').textContent = fmt1(t); $('ph').style.left = (t / d * 100) + '%'; $('cur').textContent = fmt1(t); }
+  tl.addEventListener('touchstart', e => { e.preventDefault(); tlDrag = tlT(e); tlShow(tlDrag); }, { passive:false });
+  tl.addEventListener('touchmove', e => { e.preventDefault(); tlDrag = tlT(e); tlShow(tlDrag); }, { passive:false });
+  tl.addEventListener('touchend', e => { e.preventDefault(); if (tlDrag != null) seek(tlDrag); tlDrag = null; $('tlLabel').style.display = 'none'; }, { passive:false });
+
+  // ================= 毎フレームの処理（ループ判定・表示） =================
+  let raf = 0;
+  function kick(){ if (!raf) raf = requestAnimationFrame(frame); }
+  function frame(){
+    raf = 0;
+    const d = v.duration || 0, t = v.currentTime;
+    if (S.loop && S.a != null && S.b != null && !v.paused && !counting && t >= S.b) onLoopEnd();
+    if (tlDrag == null && d) {
+      $('fill').style.width = (t / d * 100) + '%';
+      $('ph').style.left = (t / d * 100) + '%';
+      $('cur').textContent = fmt1(t);
+    }
+    markCur();
+    if (!v.paused || counting) raf = requestAnimationFrame(frame);
+  }
+  v.addEventListener('seeked', kick);
+
+  applyOpts(); applyRate();
+  renderRecent();
+})();
+</script>
+</body>
+</html>
