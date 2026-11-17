@@ -21,14 +21,16 @@
   button { -webkit-appearance:none; appearance:none; }
 
   /* ===== レイアウト：縦＝上に映像・下に操作 ／ 横＝左に映像・右に操作 ===== */
-  #app { position:fixed; inset:0; display:grid; grid-template-rows:auto auto auto 1fr; grid-template-columns:1fr;
+  #app { position:fixed; inset:0; display:grid; grid-template-rows:auto auto auto minmax(0, 1fr); grid-template-columns:minmax(0, 1fr);
     padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   header { display:flex; align-items:center; gap:4px; height:46px; padding:0 6px; }
   header .ttl { flex:1; min-width:0; font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; }
   .ib { width:44px; height:44px; border:0; background:none; display:flex; align-items:center; justify-content:center; padding:0; color:rgba(255,255,255,.8); flex-shrink:0; }
   .ib svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  #vbox { position:relative; background:#000; aspect-ratio:16/9; max-height:34vh; width:100%; overflow:hidden; }
-  #v { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  /* 映像の枠は高さを固定（縦長の動画でも枠の大きさは変わらへん） */
+  #vbox { position:relative; background:#000; height:min(56.25vw, 34vh); width:100%; min-width:0; overflow:hidden; contain:strict; }
+  #v { position:absolute; left:0; top:0; width:100%; height:100%; max-width:100%; max-height:100%; object-fit:contain; }
+  #side, .row, .sec { min-width:0; }
   #v.mirror { transform:scaleX(-1); }
   #vchip { position:absolute; right:10px; bottom:8px; font-size:20px; font-weight:800; color:rgba(255,255,255,.85); text-shadow:0 1px 4px rgba(0,0,0,.7); opacity:0; transition:opacity .12s; pointer-events:none; text-align:right; font-variant-numeric:tabular-nums; }
   #vchip small { display:block; font-size:12px; font-weight:600; color:rgba(255,255,255,.7); }
@@ -47,9 +49,9 @@
   #app.audio #vbox { display:none; }
   #app.audio #wbox { height:30vh; }
   @media (min-aspect-ratio: 1/1) {
-    #app { grid-template-columns:minmax(0, 1.15fr) minmax(340px, 1fr); grid-template-rows:auto 1fr auto; }
+    #app { grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows:auto minmax(0, 1fr) auto; }
     header { grid-column:1 / -1; }
-    #vbox { max-height:none; height:100%; aspect-ratio:auto; grid-row:2; grid-column:1; }
+    #vbox { height:auto; min-height:0; grid-row:2; grid-column:1; }
     #wbox { grid-row:3; grid-column:1; height:88px; }
     #app.audio #wbox { grid-row:2 / 4; height:auto; }
     #side { grid-row:2 / 4; grid-column:2; }
@@ -290,7 +292,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-2';
+  const APP_VERSION = '2026.11.17-3';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
