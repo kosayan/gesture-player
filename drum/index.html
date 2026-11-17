@@ -189,11 +189,6 @@
   .mc.fixed.sel { background:#fff; } .mc.fixed.sel b, .mc.fixed.sel small { color:#000; }
   /* 映像の大きさ（小さくするほどボタンが大きくなる） */
   #app { --kb:46px; --kp:50px; --kf:18px; }
-  #app.vs-M { --kb:52px; --kp:56px; --kf:19px; }
-  #app.vs-S { --kb:58px; --kp:62px; --kf:20px; }
-  #app.vs-0 { --kb:64px; --kp:68px; --kf:22px; }
-  #app.vs-M #stick .k.big, #app.vs-S #stick .k.big, #app.vs-0 #stick .k.big { height:44px; }
-  #app.vs-M #stick .k.play, #app.vs-S #stick .k.play, #app.vs-0 #stick .k.play { height:52px; }
   .sh { margin-bottom:8px; }
   .hint { font-size:11px; }
   /* 取り消しボタン */
@@ -204,7 +199,12 @@
   #mDel { flex:0 0 46px; color:#ff7b7b; font-size:18px; }
   .k.big { height:var(--kb); font-size:var(--kf); }
   .k.play { height:var(--kp); }
-  .mc { height:calc(var(--kb) - 2px); }
+  /* マーカーのチップ：始まりだけ／始まり＋終わりの2段、どちらも同じ高さに収める */
+  .mc { height:58px; padding-top:3px; padding-bottom:3px; gap:1px; }
+  .mc .st { display:flex; flex-direction:column; line-height:1.15; }
+  .mc .st b { font-size:13px; } .mc .st small { font-size:11px; margin:0; }
+  .mc .en { padding-top:2px; line-height:1.1; } .mc .en small { font-size:11px; }
+  .mc.pair .st { flex-direction:row; align-items:baseline; gap:6px; }
   #app.vs-M #vbox { height:22vh; }
   #app.vs-S #vbox { height:13vh; }
   #app.vs-0 #vbox { display:none; }
@@ -370,7 +370,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-7';
+  const APP_VERSION = '2026.11.17-8';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -883,37 +883,173 @@
   let wzoom = store.get('wzoom', 80); // 1秒あたりのピクセル
   function resizeWave(){ const dpr = window.devicePixelRatio || 1; wc.width = Math.max(1, wc.clientWidth * dpr); wc.height = Math.max(1, wc.clientHeight * dpr); kick(); }
   window.addEventListener('resize', () => setTimeout(resizeWave, 80));
+  // 波形の作り方
+  //  ・小さいファイル：まるごとデコード
+  //  ・大きいファイル：少しずつ読みながら作る（メモリを食わへん）
+  //      MP4/MOV/M4A … 音声の部分だけ取り出してAACとして少しずつデコード
+  //      WAV … 生の音のデータをそのまま少しずつ読む
+  //      MP3 … 適当な大きさに区切って少しずつデコード
+  let peaksF = null, pmax = 0, waveJob = 0; // 作成中は生の値（Float）＋最大値で持って、少しずつ描く
+  const WHOLE_MAX = store.get('wholeMax', 120e6); // これより大きいファイルは少しずつ読む
   async function loadPeaks(id, blob){
+    const job = ++waveJob;
+    peaks = null; peaksF = null; pmax = 0;
     const saved = await get('peaks', id);
     if (saved && saved.data && id === curId) { peaks = saved.data; $('wmsg').textContent = ''; kick(); return; }
-    if (blob.size > 350e6) { $('wmsg').textContent = 'ファイルが大きすぎて波形は作れへん（再生はできる）'; return; }
+    const alive = () => job === waveJob && id === curId;
     try {
-      const dur = v.duration || 600, sr = dur > 1800 ? 3000 : dur > 600 ? 6000 : 11025;
-      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      const ctx = new OAC(1, Math.max(1, Math.ceil(dur * sr)), sr);
-      const buf = await blob.arrayBuffer();
-      if (id !== curId) return;
-      const ab = await new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
-      if (id !== curId) return;
-      const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
-      const n = Math.ceil(ab.duration * PPS), spb = ab.sampleRate / PPS, raw = new Float32Array(n);
-      let max = 0;
-      for (let i = 0; i < n; i++) {
-        const st = Math.floor(i * spb), en = Math.min(chs[0].length, Math.floor((i + 1) * spb));
-        let m = 0; for (const ch of chs) for (let k = st; k < en; k++) { const x = ch[k] < 0 ? -ch[k] : ch[k]; if (x > m) m = x; }
-        raw[i] = m; if (m > max) max = m;
+      const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+      const tag = String.fromCharCode(...head.slice(4, 8)), riff = String.fromCharCode(...head.slice(0, 4));
+      const dur = v.duration || 600;
+      peaksF = new Float32Array(Math.ceil(dur * PPS) + PPS);
+      if (blob.size <= WHOLE_MAX) await wholeDecode(blob, alive);
+      else if (tag === 'ftyp' || tag === 'moov' || tag === 'mdat' || tag === 'wide' || tag === 'free') await mp4Peaks(blob, alive);
+      else if (riff === 'RIFF') await wavPeaks(blob, alive);
+      else await mp3Peaks(blob, alive);
+      if (!alive()) return;
+      finishPeaks(id);
+    } catch(e) {
+      if (alive()) { if (pmax > 0) finishPeaks(id); else { peaksF = null; $('wmsg').textContent = '波形を作れへんかった（再生はできる）'; } }
+    }
+  }
+  function finishPeaks(id){
+    const n = peaksF.length, data = new Uint8Array(n), mx = pmax || 1;
+    for (let i = 0; i < n; i++) data[i] = Math.round(Math.sqrt(Math.min(1, peaksF[i] / mx)) * 255);
+    peaks = data; peaksF = null; $('wmsg').textContent = ''; kick();
+    put('peaks', { id, data }).catch(()=>{});
+  }
+  const OAC = () => window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const decode = (ctx, buf) => new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+  // デコードした音から、startSec の位置に波形を書き込む
+  function addBuffer(ab, startSec){
+    const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
+    const spb = ab.sampleRate / PPS, n = Math.ceil(ab.length / spb), i0 = Math.round(startSec * PPS);
+    for (let j = 0; j < n; j++) {
+      const st = Math.floor(j * spb), en = Math.min(ab.length, Math.floor((j + 1) * spb));
+      let m = 0; for (const ch of chs) for (let k = st; k < en; k++) { const x = ch[k] < 0 ? -ch[k] : ch[k]; if (x > m) m = x; }
+      const idx = i0 + j; if (idx >= 0 && idx < peaksF.length && m > peaksF[idx]) peaksF[idx] = m;
+      if (m > pmax) pmax = m;
+    }
+  }
+  const progress = r => { $('wmsg').textContent = `波形を作成中… ${Math.min(99, Math.round(r * 100))}%`; kick(); };
+  async function wholeDecode(blob, alive){
+    progress(0.1);
+    const dur = v.duration || 600, sr = dur > 1800 ? 3000 : dur > 600 ? 6000 : 11025;
+    const ctx = new (OAC())(1, Math.max(1, Math.ceil(dur * sr)), sr);
+    const buf = await blob.arrayBuffer(); if (!alive()) return;
+    const ab = await decode(ctx, buf); if (!alive()) return;
+    addBuffer(ab, 0);
+  }
+  // ---- MP4/MOV/M4A ----
+  let mp4boxReady = null;
+  function loadMp4box(){
+    if (window.MP4Box) return Promise.resolve();
+    if (!mp4boxReady) mp4boxReady = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'mp4box.all.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+    return mp4boxReady;
+  }
+  const FREQS = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+  function adts(len, prof, fi, ch){
+    const L = len + 7;
+    return [0xFF, 0xF1, ((prof - 1) << 6) | (fi << 2) | (ch >> 2), ((ch & 3) << 6) | (L >> 11), (L >> 3) & 0xFF, ((L & 7) << 5) | 0x1F, 0xFC];
+  }
+  async function mp4Peaks(blob, alive){
+    await loadMp4box();
+    const ctx = new (OAC())(1, 1, 8000);
+    const file = MP4Box.createFile();
+    let track = null, prof = 2, fi = 4, chn = 2, frames = [], frameBytes = 0, chunkStart = null, pending = Promise.resolve(), done = false, fail = null;
+    const flushChunk = () => {
+      if (!frames.length) return;
+      const out = new Uint8Array(frameBytes); let o = 0;
+      for (const f of frames) { out.set(f, o); o += f.length; }
+      const st = chunkStart; frames = []; frameBytes = 0; chunkStart = null;
+      pending = pending.then(async () => { if (!alive()) return; try { addBuffer(await decode(ctx, out.buffer), st); kick(); } catch(e){} });
+    };
+    file.onError = e => { fail = e; };
+    file.onReady = info => {
+      track = info.audioTracks && info.audioTracks[0];
+      if (!track) { fail = new Error('no audio'); return; }
+      const ot = parseInt(String(track.codec).split('.').pop(), 10);
+      prof = ot >= 1 && ot <= 4 ? ot : 2;
+      fi = Math.max(0, FREQS.indexOf(track.audio.sample_rate)); if (FREQS.indexOf(track.audio.sample_rate) < 0) fi = 4;
+      chn = Math.min(7, track.audio.channel_count || 2);
+      file.setExtractionOptions(track.id, null, { nbSamples:500 });
+      file.start();
+    };
+    file.onSamples = (tid, user, samples) => {
+      for (const sm of samples) {
+        if (chunkStart === null) chunkStart = sm.cts / sm.timescale;
+        const hd = adts(sm.data.length, prof, fi, chn), f = new Uint8Array(sm.data.length + 7);
+        f.set(hd, 0); f.set(sm.data, 7); frames.push(f); frameBytes += f.length;
+        if (frames.length >= 1400) flushChunk(); // 約30秒ごとにデコード
       }
-      const data = new Uint8Array(n);
-      for (let i = 0; i < n; i++) data[i] = Math.round(Math.sqrt(raw[i] / (max || 1)) * 255);
-      peaks = data; $('wmsg').textContent = ''; kick();
-      put('peaks', { id, data }).catch(()=>{});
-    } catch(e) { if (id === curId) $('wmsg').textContent = '波形を作れへんかった（再生はできる）'; }
+      file.releaseUsedSamples(tid, samples[samples.length - 1].number + 1);
+    };
+    const CH = 4 * 1024 * 1024;
+    let off = 0, guard = 0;
+    while (off < blob.size && alive() && !fail && guard++ < 100000) {
+      const buf = await blob.slice(off, Math.min(blob.size, off + CH)).arrayBuffer();
+      buf.fileStart = off;
+      const next = file.appendBuffer(buf);
+      progress(off / blob.size);
+      off = typeof next === 'number' && next > off ? next : off + buf.byteLength;
+      await pending; // デコードが追いつくのを待つ（メモリを溜めへん）
+    }
+    if (fail) throw fail;
+    file.flush(); flushChunk(); await pending;
+  }
+  // ---- WAV ----
+  async function wavPeaks(blob, alive){
+    const hdr = new DataView(await blob.slice(0, Math.min(blob.size, 1 << 16)).arrayBuffer());
+    let p = 12, fmt = null, dataOff = 0, dataLen = 0;
+    while (p + 8 <= hdr.byteLength) {
+      const id = String.fromCharCode(hdr.getUint8(p), hdr.getUint8(p+1), hdr.getUint8(p+2), hdr.getUint8(p+3)), sz = hdr.getUint32(p + 4, true);
+      if (id === 'fmt ') fmt = { af:hdr.getUint16(p + 8, true), ch:hdr.getUint16(p + 10, true), sr:hdr.getUint32(p + 12, true), bits:hdr.getUint16(p + 22, true) };
+      if (id === 'data') { dataOff = p + 8; dataLen = Math.min(sz, blob.size - dataOff); break; }
+      p += 8 + sz + (sz & 1);
+    }
+    if (!fmt || !dataOff) throw new Error('wav');
+    const bps = fmt.bits / 8, frame = bps * fmt.ch, spb = fmt.sr / PPS;
+    const CH = Math.floor(4 * 1024 * 1024 / frame) * frame;
+    let pos = 0, fIdx = 0;
+    while (pos < dataLen && alive()) {
+      const dv = new DataView(await blob.slice(dataOff + pos, dataOff + Math.min(dataLen, pos + CH)).arrayBuffer());
+      const nf = Math.floor(dv.byteLength / frame);
+      for (let i = 0; i < nf; i += 4) { // 4サンプルおきに見れば十分
+        let m = 0;
+        for (let c = 0; c < fmt.ch; c++) {
+          const o = i * frame + c * bps; let x;
+          if (fmt.af === 3 && bps === 4) x = dv.getFloat32(o, true);
+          else if (bps === 2) x = dv.getInt16(o, true) / 32768;
+          else if (bps === 3) { const b = dv.getUint8(o) | (dv.getUint8(o+1) << 8) | (dv.getInt8(o+2) << 16); x = b / 8388608; }
+          else if (bps === 4) x = dv.getInt32(o, true) / 2147483648;
+          else x = (dv.getUint8(o) - 128) / 128;
+          x = x < 0 ? -x : x; if (x > m) m = x;
+        }
+        const idx = Math.floor((fIdx + i) / spb);
+        if (idx < peaksF.length && m > peaksF[idx]) peaksF[idx] = m;
+        if (m > pmax) pmax = m;
+      }
+      fIdx += nf; pos += dv.byteLength;
+      progress(pos / dataLen);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  // ---- MP3 など ----
+  async function mp3Peaks(blob, alive){
+    const ctx = new (OAC())(1, 1, 8000), CH = 2 * 1024 * 1024;
+    let off = 0, t = 0;
+    while (off < blob.size && alive()) {
+      const buf = await blob.slice(off, Math.min(blob.size, off + CH)).arrayBuffer();
+      try { const ab = await decode(ctx, buf); addBuffer(ab, t); t += ab.duration; } catch(e){}
+      off += CH; progress(off / blob.size);
+    }
+    if (!pmax) throw new Error('mp3');
   }
   function peakAt(i0, i1){
-    if (!peaks) return 0;
-    i0 = Math.max(0, Math.floor(i0)); i1 = Math.min(peaks.length, Math.max(i0 + 1, Math.ceil(i1)));
-    let m = 0; for (let i = i0; i < i1; i++) if (peaks[i] > m) m = peaks[i];
-    return m / 255;
+    const src = peaksF || peaks; if (!src) return 0;
+    i0 = Math.max(0, Math.floor(i0)); i1 = Math.min(src.length, Math.max(i0 + 1, Math.ceil(i1)));
+    let m = 0; for (let i = i0; i < i1; i++) if (src[i] > m) m = src[i];
+    return peaksF ? (pmax ? Math.sqrt(Math.min(1, m / pmax)) : 0) : m / 255;
   }
   function drawWave(){
     const dpr = window.devicePixelRatio || 1, W = wc.width, H = wc.height, x = wc.getContext('2d');
@@ -933,7 +1069,7 @@
     for (let px = (W / 2) % stp - stp; px < W; px += stp) {
       const t0 = tAt(px), t1 = t0 + stp / pps;
       if (t1 < 0 || t0 > dur) continue;
-      const a = peaks ? peakAt(t0 * PPS, t1 * PPS) : 0.04, h = Math.max(dpr, a * H * 0.42);
+      const a = (peaks || peaksF) ? peakAt(t0 * PPS, t1 * PPS) : 0.04, h = Math.max(dpr, a * H * 0.42);
       x.fillStyle = t0 < played ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.32)';
       x.fillRect(px, mid - h, bar, h * 2);
     }
