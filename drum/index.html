@@ -344,6 +344,15 @@
   <div class="set"><span>映像を長押ししてる間の速度</span><select id="optHold"><option value="0.5">0.5倍</option><option value="0.75">0.75倍</option><option value="1.25">1.25倍</option><option value="1.5">1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></div>
   <div class="set"><span>速度を変えても音程を保つ</span><select id="optPitch"><option value="1">保つ</option><option value="0">保たない</option></select></div>
   <div class="set"><span>練習中は画面を消さへん</span><select id="optWake"><option value="1">オン</option><option value="0">オフ</option></select></div>
+  <div class="set" style="flex-direction:column; align-items:stretch; gap:8px">
+    <span>マーカーの書き出し・読み込み</span>
+    <div class="row">
+      <button class="k sm" id="expBtn" style="background:#2c2c2e">⤴ 書き出す</button>
+      <button class="k sm" id="impBtn" style="background:#2c2c2e">⤵ 読み込む</button>
+    </div>
+    <span class="empty" style="font-size:12px">マーカー・ループ・速度・テンポを、全部の動画ぶんまとめて1つのファイルにする。iPhoneの「ファイル」に保存したり、AirDropで別の端末に送ったりできる</span>
+    <input type="file" id="impFile" accept=".json,application/json" hidden>
+  </div>
   <div class="set"><span>最近の動画を保存する数</span><select id="optKeep"><option value="0">保存しない</option><option value="10">10本</option><option value="30">30本</option><option value="100">100本</option><option value="9999">上限なし</option></select></div>
   <p class="empty" style="margin:12px 2px 0">マーカー・A-B・速度・テンポは動画ごとに自動で保存されるで。音声ファイルも開ける</p>
   <button class="k upd" style="background:#2c2c2e">⟳ アプリを最新版に更新</button>
@@ -370,7 +379,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-8';
+  const APP_VERSION = '2026.11.17-9';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -420,8 +429,17 @@
   }
   function updateUndoBtn(){ $('undoBtn').classList.toggle('dis', !undoStack.length); $('undoN').textContent = undoStack.length ? undoStack.length : ''; }
   function saveState(){ if (!curId) return; S.pos = v.currentTime || S.pos; trackUndo(); store.set('st_' + curId, S); }
+  // id = 名前_サイズ_更新日時。更新日時は端末やコピーで変わるので、見つからなければ名前＋サイズで探す
+  function findStateKey(id){
+    if (localStorage.getItem('gdp_st_' + id) !== null) return id;
+    const base = id.replace(/_\d+$/, '') + '_';
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('gdp_st_' + base)) return k.slice(7); }
+    return id;
+  }
   function loadState(id){
-    S = Object.assign(blank(), store.get('st_' + id, {}));
+    const key = findStateKey(id);
+    S = Object.assign(blank(), store.get('st_' + key, {}));
+    if (key !== id) { store.set('st_' + id, S); store.del('st_' + key); } // 名前＋サイズで見つかったら、今のファイルのidに付け替え
     // 前のバージョンのA-Bはマーカーに変換
     if (S.a != null && S.b != null && S.sel === 0 && S.span === 1 && !S.converted) {
       for (const t of [S.a, S.b]) if (t > 0.2 && !S.marks.some(m => Math.abs(m.t - t) < 0.3)) S.marks.push({ t:Math.round(t * 10) / 10, name:'' });
@@ -1213,6 +1231,49 @@
   $('fsBack').onclick = () => skipBy(-opt.s); $('fsFwd').onclick = () => skipBy(opt.s);
   $('fsLoop').onclick = () => { $('loopBtn').click(); updateFsBar(); };
   v.addEventListener('play', updateFsBar); v.addEventListener('pause', updateFsBar);
+
+
+  // ================= マーカーの書き出し・読み込み =================
+  async function exportData(){
+    saveState();
+    const metas = Object.fromEntries((await metaAll()).map(m => [m.id, m.name]));
+    const items = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i); if (!k || !k.startsWith('gdp_st_')) continue;
+      const id = k.slice(7); let st; try { st = JSON.parse(localStorage.getItem(k)); } catch(e){ continue; }
+      if (!st || (!(st.marks || []).length && (st.rate || 1) === 1 && !st.headEnd)) continue; // 何も設定してない動画は省く
+      const { a, b, pos, ...rest } = st;
+      items.push({ id, name:metas[id] || id.replace(/_\d+_\d+$/, ''), state:rest });
+    }
+    if (!items.length) { chip('書き出すマーカーがまだないで', '', 1200); return; }
+    const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const json = JSON.stringify({ app:'drum-practice', version:1, exported:d.toISOString(), items }, null, 1);
+    const file = new File([json], `ドラム練習マーカー_${stamp}.json`, { type:'application/json' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files:[file] })) { await navigator.share({ files:[file] }); chip(`${items.length}本ぶん書き出した`, '', 1200); return; }
+    } catch(e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    chip(`${items.length}本ぶん書き出した`, '「ダウンロード」に保存されたで', 1500);
+  }
+  $('expBtn').onclick = () => exportData();
+  $('impBtn').onclick = () => $('impFile').click();
+  $('impFile').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    let data; try { data = JSON.parse(await f.text()); } catch(err) { chip('読み込めへんファイルやった', '', 1500); return; }
+    if (!data || !Array.isArray(data.items)) { chip('このアプリのファイルやないみたい', '', 1500); return; }
+    let n = 0;
+    for (const it of data.items) {
+      if (!it || !it.id || !it.state) continue;
+      // 同じ動画（名前＋サイズが同じ）の既存データがあればそこへ上書き
+      const key = findStateKey(it.id);
+      store.set('st_' + key, Object.assign(blank(), it.state)); n++;
+    }
+    if (curId) { const keep = v.currentTime; loadState(curId); S.pos = keep; resetUndo(); applyRate(); renderMarks(); $('bpmV').textContent = S.bpm; v.classList.toggle('mirror', !!S.mirror); applyVz(); }
+    renderRecent();
+    chip(`${n}本ぶん読み込んだ`, '同じ動画を開くとマーカーが出てくる', 1800);
+  });
 
   // ================= 毎フレームの処理（ループ判定・表示） =================
   let raf = 0;
