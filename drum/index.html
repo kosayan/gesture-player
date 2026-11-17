@@ -144,6 +144,37 @@
   .card .del { width:42px; height:42px; border:0; background:none; color:#777; font-size:16px; }
   .empty { color:#777; font-size:13px; line-height:1.7; }
   .ver { color:#666; font-size:11px; margin-top:8px; text-align:center; }
+
+  /* 上に固定する再生まわり */
+  #stick { position:sticky; top:-8px; z-index:5; background:var(--bg); margin:-8px -12px 0; padding:8px 12px 8px; border-bottom:1px solid var(--line); }
+  /* セクションの並べ替えボタン */
+  .sh .mv { display:flex; gap:4px; margin-left:8px; }
+  .sh .mv button { width:34px; height:28px; border:0; border-radius:8px; background:#222226; color:rgba(255,255,255,.6); font-size:11px; padding:0; }
+  .sh .val { margin-left:auto; }
+  /* マーカー（選択中・ループ範囲） */
+  .mc.sel { background:var(--mk); } .mc.sel b, .mc.sel small { color:#000; }
+  .mc.inloop { border-color:var(--a); box-shadow:0 0 0 2px rgba(56,198,255,.5) inset; }
+  .mc.fixed { background:#1f1f22; border-color:rgba(255,255,255,.2); }
+  .mc.fixed b { color:#fff; }
+  .mc.fixed.sel { background:#fff; } .mc.fixed.sel b, .mc.fixed.sel small { color:#000; }
+  /* 映像の大きさ（小さくするほどボタンが大きくなる） */
+  #app { --kb:58px; --kp:64px; --kf:20px; }
+  #app.vs-M { --kb:66px; --kp:72px; --kf:22px; }
+  #app.vs-S { --kb:74px; --kp:80px; --kf:24px; }
+  #app.vs-0 { --kb:82px; --kp:88px; --kf:26px; }
+  .k.big { height:var(--kb); font-size:var(--kf); }
+  .k.play { height:var(--kp); }
+  .mc { height:calc(var(--kb) - 2px); }
+  #app.vs-M #vbox { height:22vh; }
+  #app.vs-S #vbox { height:13vh; }
+  #app.vs-0 #vbox { display:none; }
+  @media (min-aspect-ratio: 1/1) {
+    #app.vs-M { grid-template-columns:minmax(0, .8fr) minmax(0, 1fr); }
+    #app.vs-S { grid-template-columns:minmax(0, .5fr) minmax(0, 1fr); }
+    #app.vs-M #vbox, #app.vs-S #vbox { height:auto; }
+    #app.vs-0 #wbox { grid-row:2 / 4; height:auto; }
+    #app.vs-0 { grid-template-columns:minmax(0, .45fr) minmax(0, 1fr); }
+  }
 </style>
 </head>
 <body>
@@ -152,13 +183,15 @@
   <header>
     <button class="ib" id="homeBtn" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <button class="ib" id="mirBtn" aria-label="左右反転"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7L3 12l5 5V7z"/><path d="M16 7l5 5-5 5V7z"/></svg></button>
+    <button class="ib" id="vsBtn" aria-label="映像の大きさ"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/></svg></button>
     <div class="ttl" id="ttl">—</div>
+    <button class="ib" id="rlBtn" aria-label="ファイルを読み込み直す"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
     <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </header>
 
   <div id="vbox">
     <video id="v" playsinline webkit-playsinline preload="auto"></video>
-    <div id="vtap">タップで再生・停止</div>
+    <div id="vtap">タップ＝再生・停止　長押し＝倍速</div>
     <div id="count">1</div>
     <div id="vchip"></div>
   </div>
@@ -166,85 +199,77 @@
   <div id="wbox"><canvas id="wave"></canvas><div id="wph"></div><div id="wmsg"></div><div id="wlabel"></div></div>
 
   <div id="side">
-    <!-- タイムライン -->
-    <div class="tl" id="tl">
-      <div class="track"><div class="fill" id="fill"></div></div>
-      <div class="ab" id="abBar"></div>
-      <div id="mkLayer"></div>
-      <div class="ph" id="ph"></div>
-      <div id="tlLabel"></div>
-    </div>
-    <div class="times"><span class="now" id="cur">0:00.0</span><span id="loopInfo"></span><span id="dur">0:00</span></div>
-
-    <!-- 再生 -->
-    <div class="row" style="margin-top:10px">
-      <button class="k big" id="bBig">−5</button>
-      <button class="k big" id="bSmall">−2</button>
-      <button class="k play" id="playBtn" aria-label="再生"></button>
-      <button class="k big" id="fSmall">+2</button>
-      <button class="k big" id="fBig">+5</button>
-    </div>
-
-    <!-- ループ -->
-    <div class="sec">
-      <div class="sh"><span>A-B ループ</span><span class="val" id="loopCnt"></span></div>
-      <div class="row">
-        <button class="k big a" id="aBtn">A<small>ここ</small></button>
-        <button class="k big b" id="bBtn">B<small>ここ</small></button>
-        <button class="k big loop" id="loopBtn">ループ<small>OFF</small></button>
+    <!-- 常に上に固定：タイムラインと再生ボタン -->
+    <div id="stick">
+      <div class="tl" id="tl">
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="ab" id="abBar"></div>
+        <div id="mkLayer"></div>
+        <div class="ph" id="ph"></div>
+        <div id="tlLabel"></div>
       </div>
-      <div class="row">
-        <button class="k sm a" id="aM">A −0.1</button>
-        <button class="k sm a" id="aP">A +0.1</button>
-        <button class="k sm b" id="bM">B −0.1</button>
-        <button class="k sm b" id="bP">B +0.1</button>
-      </div>
-      <div class="row">
-        <button class="k sm" id="toA">Aへ戻る</button>
-        <button class="k sm" id="abClr">A-Bを消す</button>
+      <div class="times"><span class="now" id="cur">0:00.0</span><span id="loopInfo"></span><span id="dur">0:00</span></div>
+      <div class="row" style="margin-top:8px">
+        <button class="k big" id="bBig">−5</button>
+        <button class="k big" id="bSmall">−2</button>
+        <button class="k play" id="playBtn" aria-label="再生"></button>
+        <button class="k big" id="fSmall">+2</button>
+        <button class="k big" id="fBig">+5</button>
       </div>
     </div>
 
-    <!-- マーカー -->
-    <div class="sec">
-      <div class="sh"><span>マーカー</span><span class="val" id="mkCnt">0個</span></div>
-      <div class="row">
-        <button class="k" id="mPrev">◀ 前へ</button>
-        <button class="k on" id="mAdd" style="flex:1.5">＋ ここに追加</button>
-        <button class="k" id="mNext">次へ ▶</button>
+    <div id="secs">
+      <!-- マーカー＋ループ -->
+      <div class="sec" data-k="ml">
+        <div class="sh"><span>マーカー＆ループ</span><span class="val" id="loopCnt"></span><span class="mv"><button data-mv="-1" aria-label="上へ">▲</button><button data-mv="1" aria-label="下へ">▼</button></span></div>
+        <div class="row">
+          <button class="k" id="mPrev">◀ 前</button>
+          <button class="k on" id="mAdd" style="flex:1.4">＋ ここにマーカー</button>
+          <button class="k" id="mNext">次 ▶</button>
+        </div>
+        <div id="marks"></div>
+        <div class="row">
+          <button class="k big loop" id="loopBtn" style="flex:1.6">ループ<small>OFF</small></button>
+          <button class="k big" id="spanM">範囲 −</button>
+          <button class="k big" id="spanP">範囲 ＋</button>
+        </div>
+        <div class="row">
+          <button class="k sm" id="selM">◀ 0.1秒</button>
+          <button class="k sm" id="selInfo" style="flex:1.6; background:#202024">選択中：頭</button>
+          <button class="k sm" id="selP">0.1秒 ▶</button>
+        </div>
+        <div class="hint">マーカーをタップ＝そこへ飛ぶ。ループONなら、そのマーカーから次のマーカーまでを繰り返す（範囲＋で次の区間までつなげる）。長押しで名前・移動・削除</div>
       </div>
-      <div id="marks"></div>
-      <div class="hint">タップでその位置へ。長押しで「ここから次までループ」「名前」「削除」</div>
-    </div>
 
-    <!-- 速度 -->
-    <div class="sec">
-      <div class="sh"><span>速度</span><span class="val" id="pitchInfo">音程そのまま</span></div>
-      <div class="row">
-        <button class="k big" id="rDown">−5%</button>
-        <button class="k big rate" id="rVal">100%</button>
-        <button class="k big" id="rUp">+5%</button>
+      <!-- 速度 -->
+      <div class="sec" data-k="speed">
+        <div class="sh"><span>速度</span><span class="val" id="pitchInfo">音程そのまま</span><span class="mv"><button data-mv="-1">▲</button><button data-mv="1">▼</button></span></div>
+        <div class="row">
+          <button class="k big" id="rDown">−5%</button>
+          <button class="k big rate" id="rVal">100%</button>
+          <button class="k big" id="rUp">+5%</button>
+        </div>
+        <div class="presets" id="presets"></div>
       </div>
-      <div class="presets" id="presets"></div>
-    </div>
 
-    <!-- 練習モード -->
-    <div class="sec">
-      <div class="sh"><span>練習モード</span></div>
-      <div class="opt"><span>カウントイン</span>
-        <select id="optCount"><option value="0">なし</option><option value="2">2拍</option><option value="4">4拍</option><option value="8">8拍</option></select></div>
-      <div class="opt"><span>テンポ（BPM）</span>
-        <div class="bpm"><button class="k" id="bpmM">−</button><b id="bpmV">120</b><button class="k" id="bpmP">＋</button><button class="k" id="tapBtn" style="width:64px">タップ</button></div></div>
-      <div class="opt"><span>助走（少し前から）</span>
-        <select id="optPre"><option value="0">なし</option><option value="0.5">0.5秒</option><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
-      <div class="opt"><span>スピードトレーナー</span><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
-      <div class="trn" id="trn">
-        <label>開始<select id="tStart"></select></label>
-        <label>上げ幅<select id="tStep"><option value="1">+1%</option><option value="2">+2%</option><option value="5" selected>+5%</option><option value="10">+10%</option></select></label>
-        <label>何回ごと<select id="tEvery"><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option><option value="4">4回</option><option value="5">5回</option></select></label>
-        <label>最大<select id="tMax"></select></label>
+      <!-- 練習モード -->
+      <div class="sec" data-k="prac">
+        <div class="sh"><span>練習モード</span><span class="mv"><button data-mv="-1">▲</button><button data-mv="1">▼</button></span></div>
+        <div class="opt"><span>カウントイン</span>
+          <select id="optCount"><option value="0">なし</option><option value="2">2拍</option><option value="4">4拍</option><option value="8">8拍</option></select></div>
+        <div class="opt"><span>テンポ（BPM）</span>
+          <div class="bpm"><button class="k" id="bpmM">−</button><b id="bpmV">120</b><button class="k" id="bpmP">＋</button><button class="k" id="tapBtn" style="width:64px">タップ</button></div></div>
+        <div class="opt"><span>助走（少し前から）</span>
+          <select id="optPre"><option value="0">なし</option><option value="0.5">0.5秒</option><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
+        <div class="opt"><span>スピードトレーナー</span><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
+        <div class="trn" id="trn">
+          <label>開始<select id="tStart"></select></label>
+          <label>上げ幅<select id="tStep"><option value="1">+1%</option><option value="2">+2%</option><option value="5" selected>+5%</option><option value="10">+10%</option></select></label>
+          <label>何回ごと<select id="tEvery"><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option><option value="4">4回</option><option value="5">5回</option></select></label>
+          <label>最大<select id="tMax"></select></label>
+        </div>
+        <div class="hint">カウントイン：ループの頭と▶のたびにクリックが鳴る（今の速度に合わせたテンポ）。スピードトレーナー：ループするたびに少しずつ速くなる</div>
       </div>
-      <div class="hint">カウントイン：ループの頭と▶のたびにクリックが鳴る（今の速度に合わせたテンポ）。スピードトレーナー：ループするたびに少しずつ速くなる</div>
     </div>
   </div>
 </div>
@@ -252,8 +277,6 @@
 <div id="msheet"><div class="panel">
   <h3 id="msTitle">マーカー</h3>
   <button class="k" id="msLoop">ここから次のマーカーまでループ</button>
-  <button class="k" id="msA">ここをAにする</button>
-  <button class="k" id="msB">ここをBにする</button>
   <button class="k" id="msHere">今の位置に動かす</button>
   <button class="k" id="msName">名前を変える</button>
   <button class="k danger" id="msDel">削除</button>
@@ -264,6 +287,7 @@
   <h3>設定</h3>
   <div class="set"><span>小さいスキップ</span><select id="optS"><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
   <div class="set"><span>大きいスキップ</span><select id="optL"><option value="5">5秒</option><option value="10">10秒</option><option value="15">15秒</option><option value="30">30秒</option></select></div>
+  <div class="set"><span>映像を長押ししてる間の速度</span><select id="optHold"><option value="0.5">0.5倍</option><option value="0.75">0.75倍</option><option value="1.25">1.25倍</option><option value="1.5">1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></div>
   <div class="set"><span>速度を変えても音程を保つ</span><select id="optPitch"><option value="1">保つ</option><option value="0">保たない</option></select></div>
   <div class="set"><span>練習中は画面を消さへん</span><select id="optWake"><option value="1">オン</option><option value="0">オフ</option></select></div>
   <div class="set"><span>最近の動画を保存する数</span><select id="optKeep"><option value="0">保存しない</option><option value="10">10本</option><option value="30">30本</option><option value="100">100本</option><option value="9999">上限なし</option></select></div>
@@ -292,7 +316,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-3';
+  const APP_VERSION = '2026.11.17-4';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -312,8 +336,8 @@
     del(k){ try { localStorage.removeItem('gdp_' + k); } catch(e){} }
   };
   const opt = { s:store.get('s', 2), l:store.get('l', 5), pitch:store.get('pitch', 1), wake:store.get('wake', 1), keep:store.get('keep', 30),
-    count:store.get('count', 0), pre:store.get('pre', 0) };
-  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optCount','count'],['optPre','pre']];
+    count:store.get('count', 0), pre:store.get('pre', 0), hold:store.get('hold', 2) };
+  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optCount','count'],['optPre','pre'],['optHold','hold']];
   for (const [id, k] of optSel) { $(id).value = opt[k]; $(id).addEventListener('change', e => { opt[k] = Number(e.target.value); store.set(k, opt[k]); applyOpts(); }); }
   function applyOpts(){
     $('bSmall').textContent = '−' + opt.s; $('fSmall').textContent = '+' + opt.s;
@@ -328,10 +352,19 @@
 
   // ================= 動画ごとの状態（マーカー・A-B・速度・テンポ） =================
   let curId = null, url = null, session = [];
-  const blank = () => ({ marks:[], a:null, b:null, loop:false, rate:1, bpm:120, mirror:false, pos:0 });
+  const blank = () => ({ marks:[], a:null, b:null, sel:0, span:1, loop:false, rate:1, bpm:120, mirror:false, pos:0 });
   let S = blank();
   function saveState(){ if (!curId) return; S.pos = v.currentTime || S.pos; store.set('st_' + curId, S); }
-  function loadState(id){ S = Object.assign(blank(), store.get('st_' + id, {})); }
+  function loadState(id){
+    S = Object.assign(blank(), store.get('st_' + id, {}));
+    // 前のバージョンのA-Bはマーカーに変換
+    if (S.a != null && S.b != null && S.sel === 0 && S.span === 1 && !S.converted) {
+      for (const t of [S.a, S.b]) if (t > 0.2 && !S.marks.some(m => Math.abs(m.t - t) < 0.3)) S.marks.push({ t:Math.round(t * 10) / 10, name:'' });
+      S.marks.sort((x, y) => x.t - y.t);
+      const i = S.marks.findIndex(m => Math.abs(m.t - S.a) < 0.3); S.sel = i >= 0 ? i + 1 : 0;
+    }
+    S.converted = true;
+  }
 
   // ================= 保存（IndexedDB） =================
   let dbp = null;
@@ -452,7 +485,24 @@
   v.addEventListener('pause', () => { if (!counting) $('playBtn').innerHTML = ICON_PLAY; saveState(); });
   function togglePlay(){ if (counting) { cancelCount(); return; } v.paused ? playWithCount() : v.pause(); }
   $('playBtn').onclick = togglePlay;
-  $('vbox').addEventListener('click', togglePlay);
+  // 映像：タップ＝再生・停止、長押し＝押してる間だけ速度を変える
+  let vHold = null, vHolding = false, vHoldPaused = false, vTouch = false;
+  const vb = $('vbox');
+  vb.addEventListener('touchstart', e => {
+    vTouch = true; clearTimeout(vHold);
+    vHold = setTimeout(() => {
+      vHolding = true; vHoldPaused = v.paused;
+      v.playbackRate = opt.hold; if (v.paused) v.play().catch(()=>{});
+      $('vchip').innerHTML = '▶▶ ' + opt.hold + '倍<small>長押し中</small>'; $('vchip').style.opacity = 1; clearTimeout(chipT);
+    }, 350);
+  }, { passive:true });
+  vb.addEventListener('touchmove', () => { if (!vHolding) clearTimeout(vHold); }, { passive:true });
+  vb.addEventListener('touchend', e => {
+    e.preventDefault(); clearTimeout(vHold);
+    if (vHolding) { vHolding = false; v.playbackRate = S.rate; $('vchip').style.opacity = 0; if (vHoldPaused) v.pause(); }
+    else togglePlay();
+  }, { passive:false });
+  vb.addEventListener('click', () => { if (!vTouch) togglePlay(); });
   const seek = t => { v.currentTime = clamp(t, 0, v.duration || 0); kick(); };
   const skipBy = d => { seek(v.currentTime + d); chip((d > 0 ? '+' : '−') + Math.abs(d) + '秒', fmt1(v.currentTime), 700); };
   $('bBig').onclick = () => skipBy(-opt.l); $('bSmall').onclick = () => skipBy(-opt.s);
@@ -477,55 +527,6 @@
   $('rVal').onclick = () => setRate(1);
   $('presets').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setRate(Number(b.dataset.p) / 100); });
 
-  // ================= A-B ループ =================
-  let loops = 0;
-  function updateLoopUI(){
-    const has = S.a != null && S.b != null;
-    $('aBtn').classList.toggle('set', S.a != null); $('bBtn').classList.toggle('set', S.b != null);
-    $('aBtn').innerHTML = 'A<small>' + (S.a != null ? fmt1(S.a) : 'ここ') + '</small>';
-    $('bBtn').innerHTML = 'B<small>' + (S.b != null ? fmt1(S.b) : 'ここ') + '</small>';
-    $('loopBtn').classList.toggle('on', S.loop && has);
-    $('loopBtn').innerHTML = 'ループ<small>' + (S.loop && has ? 'ON' : 'OFF') + '</small>';
-    $('loopCnt').textContent = S.loop && has ? `${loops}回目` + (trn.on ? `・${Math.round(S.rate * 100)}%` : '') : '';
-    $('loopInfo').textContent = has ? `${fmt1(S.a)} 〜 ${fmt1(S.b)}` : '';
-    drawTimelineStatic();
-  }
-  function setA(t){ S.a = Math.max(0, t); if (S.b != null && S.b <= S.a + 0.2) S.b = null; loops = 0; updateLoopUI(); saveState(); }
-  function setB(t){
-    if (S.a == null) S.a = 0;
-    if (t <= S.a + 0.2) { chip('Aより後ろにしてな', '', 1000); return; }
-    S.b = t; S.loop = true; loops = 0; updateLoopUI(); saveState();
-  }
-  $('aBtn').onclick = () => { setA(v.currentTime); chip('A', fmt1(S.a), 700); };
-  $('bBtn').onclick = () => { setB(v.currentTime); if (S.b != null) { chip('ループ開始', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 1000); startFromA(); } };
-  $('loopBtn').onclick = () => {
-    if (S.a == null || S.b == null) { chip('先にAとBを決めてな', '', 1000); return; }
-    S.loop = !S.loop; loops = 0; updateLoopUI(); saveState();
-    if (S.loop && (v.currentTime > S.b || v.currentTime < S.a - opt.pre - 0.5)) startFromA();
-  };
-  const nudge = (k, d) => {
-    if (S[k] == null) return;
-    S[k] = Math.max(0, Math.round((S[k] + d) * 10) / 10);
-    if (S.a != null && S.b != null && S.b <= S.a + 0.2) S[k] -= d;
-    updateLoopUI(); saveState(); chip(k.toUpperCase() + ' ' + fmt1(S[k]), '', 600);
-    if (k === 'a' && v.paused) seek(S.a);
-  };
-  $('aM').onclick = () => nudge('a', -0.1); $('aP').onclick = () => nudge('a', 0.1);
-  $('bM').onclick = () => nudge('b', -0.1); $('bP').onclick = () => nudge('b', 0.1);
-  $('toA').onclick = () => { if (S.a != null) startFromA(); };
-  $('abClr').onclick = () => { S.a = S.b = null; S.loop = false; loops = 0; updateLoopUI(); saveState(); };
-  function startFromA(){
-    const t = Math.max(0, S.a - opt.pre);
-    if (opt.count > 0) { v.pause(); seek(t); countIn(() => v.play().catch(()=>{})); }
-    else { seek(t); if (v.paused) v.play().catch(()=>{}); }
-  }
-  function onLoopEnd(){
-    loops++;
-    trainerStep();
-    updateLoopUI();
-    startFromA();
-  }
-
   // ================= スピードトレーナー =================
   const trn = { on:false };
   const pctOpts = (from, to) => Array.from({ length:(to - from) / 5 + 1 }, (_, i) => `<option value="${from + i * 5}">${from + i * 5}%</option>`).join('');
@@ -534,7 +535,7 @@
   function trainerOff(){ trn.on = false; $('trnSw').classList.remove('on'); $('trn').classList.remove('on'); }
   $('trnSw').onclick = () => {
     trn.on = !trn.on; $('trnSw').classList.toggle('on', trn.on); $('trn').classList.toggle('on', trn.on);
-    if (trn.on) { setRate(Number($('tStart').value) / 100); loops = 0; if (S.a == null || S.b == null) chip('A-Bループと一緒に使ってな', '', 1500); }
+    if (trn.on) { setRate(Number($('tStart').value) / 100); loops = 0; if (!S.loop) chip('ループと一緒に使ってな', '', 1500); }
     updateLoopUI();
   };
   $('tStart').addEventListener('change', () => { if (trn.on) { setRate(Number($('tStart').value) / 100); loops = 0; updateLoopUI(); } });
@@ -580,48 +581,107 @@
     chip('BPM ' + S.bpm, taps.length < 2 ? 'もう何回かタップ' : '曲に合わせてタップ', 900);
   };
 
-  // ================= マーカー =================
-  let msIdx = -1;
+  // ================= マーカー＆ループ（統合） =================
+  // 「頭(0:00)」＋マーカーを区切りにして、選んだマーカーから次のマーカーまで（範囲＋で延長）をループする
+  let loops = 0, msIdx = -1;
+  const allMarks = () => [{ t:0, name:'頭', fixed:true }, ...S.marks];
+  const markName = (m, i) => m.fixed ? '頭' : (m.name || ('M' + i));
   function sortMarks(){ S.marks.sort((a, b) => a.t - b.t); }
-  function curMarkIdx(){ let idx = -1; S.marks.forEach((m, i) => { if (m.t <= v.currentTime + 0.15) idx = i; }); return idx; }
+  function syncAB(){
+    const L = allMarks();
+    S.sel = clamp(S.sel || 0, 0, L.length - 1);
+    S.span = clamp(S.span || 1, 1, Math.max(1, L.length - S.sel));
+    const a = L[S.sel].t, ei = S.sel + S.span, b = ei < L.length ? L[ei].t : (v.duration || 0);
+    S.a = a; S.b = b > a + 0.2 ? b : null;
+  }
+  function updateLoopUI(){
+    syncAB();
+    const has = S.a != null && S.b != null, L = allMarks();
+    $('loopBtn').classList.toggle('on', S.loop && has);
+    $('loopBtn').innerHTML = 'ループ<small>' + (S.loop && has ? 'ON' : 'OFF') + '</small>';
+    $('loopCnt').textContent = S.loop && has ? `${loops}回目` + (trn.on ? `・${Math.round(S.rate * 100)}%` : '') : '';
+    $('loopInfo').textContent = has ? `${fmt1(S.a)} 〜 ${fmt1(S.b)}` : '';
+    const sm = L[S.sel];
+    $('selInfo').textContent = '選択中：' + markName(sm, S.sel) + ' ' + fmt1(sm.t);
+    document.querySelectorAll('.mc').forEach((b, i) => {
+      b.classList.toggle('sel', i === S.sel);
+      b.classList.toggle('inloop', S.loop && has && i > S.sel && i < S.sel + S.span);
+    });
+    drawTimelineStatic();
+  }
   function renderMarks(){
     sortMarks();
     const box = $('marks'); box.innerHTML = '';
-    S.marks.forEach((m, i) => {
-      const b = document.createElement('button'); b.className = 'mc'; b.dataset.i = i;
+    allMarks().forEach((m, i) => {
+      const b = document.createElement('button'); b.className = 'mc' + (m.fixed ? ' fixed' : ''); b.dataset.i = i;
       b.innerHTML = `<b></b><small>${fmt1(m.t)}</small>`;
-      b.querySelector('b').textContent = m.name || ('M' + (i + 1));
+      b.querySelector('b').textContent = markName(m, i);
       box.appendChild(b);
     });
-    $('mkCnt').textContent = S.marks.length + '個';
-    drawTimelineStatic(); markCur();
+    updateLoopUI();
   }
-  function markCur(){ const i = curMarkIdx(); document.querySelectorAll('.mc').forEach((b, j) => b.classList.toggle('cur', j === i)); }
-  function jumpMark(i){
-    const m = S.marks[i]; if (!m) return;
-    const t = Math.max(0, m.t - opt.pre);
-    if (v.paused && opt.count > 0) { seek(t); countIn(() => v.play().catch(()=>{})); } else seek(t);
-    chip(m.name || ('M' + (i + 1)), fmt1(m.t), 800);
+  // 選んだマーカー（時間）を保ったまま並べ直す
+  function keepSel(fn){
+    const ref = allMarks()[clamp(S.sel, 0, S.marks.length)];
+    fn(); sortMarks();
+    const i = allMarks().findIndex(m => ref.fixed ? m.fixed : m === ref);
+    S.sel = i < 0 ? 0 : i;
+  }
+  function selectMark(i, jump){
+    S.sel = i; S.span = 1; loops = 0;
+    updateLoopUI(); saveState();
+    const m = allMarks()[i];
+    if (jump) {
+      if (S.loop && S.b != null) startFromA();
+      else { const t = Math.max(0, m.t - opt.pre); if (v.paused && opt.count > 0) { seek(t); countIn(() => v.play().catch(()=>{})); } else seek(t); }
+      chip(markName(m, i), fmt1(m.t), 800);
+    }
     const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
   }
+  function startFromA(){
+    if (S.a == null) return;
+    const t = Math.max(0, S.a - opt.pre);
+    if (opt.count > 0) { v.pause(); seek(t); countIn(() => v.play().catch(()=>{})); }
+    else { seek(t); if (v.paused) v.play().catch(()=>{}); }
+  }
+  function onLoopEnd(){ loops++; trainerStep(); updateLoopUI(); startFromA(); }
+  $('loopBtn').onclick = () => {
+    syncAB();
+    if (S.b == null) { chip('区間が短すぎるで', '', 1000); return; }
+    S.loop = !S.loop; loops = 0; updateLoopUI(); saveState();
+    if (S.loop) { chip('ループ', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 1000); if (v.currentTime > S.b || v.currentTime < S.a - opt.pre - 0.5) startFromA(); }
+  };
+  $('spanP').onclick = () => { const L = allMarks(); if (S.sel + S.span >= L.length) { chip('もう最後までや', '', 800); return; } S.span++; loops = 0; updateLoopUI(); saveState(); chip('範囲', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 900); };
+  $('spanM').onclick = () => { if (S.span <= 1) return; S.span--; loops = 0; updateLoopUI(); saveState(); chip('範囲', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 900); };
+  // 選択中のマーカーを0.1秒ずつ動かす（頭は動かへん）
+  const nudgeSel = d => {
+    const L = allMarks(), m = L[S.sel];
+    if (m.fixed) { chip('頭は動かされへん', '', 800); return; }
+    const mk = S.marks[S.sel - 1];
+    keepSel(() => { mk.t = Math.max(0.1, Math.round((mk.t + d) * 10) / 10); });
+    renderMarks(); saveState(); chip(markName(mk, S.sel) + ' ' + fmt1(mk.t), '', 600);
+    if (v.paused) seek(mk.t);
+  };
+  $('selM').onclick = () => nudgeSel(-0.1); $('selP').onclick = () => nudgeSel(0.1);
+  $('selInfo').onclick = () => selectMark(S.sel, true);
   $('mAdd').onclick = () => {
     const t = Math.round(v.currentTime * 10) / 10;
-    if (S.marks.some(m => Math.abs(m.t - t) < 0.3)) { chip('もうそこにあるで', '', 800); return; }
-    S.marks.push({ t, name:'' }); sortMarks();
-    // 名前が未設定のものは順番どおりに振り直す
+    if (t < 0.3 || S.marks.some(m => Math.abs(m.t - t) < 0.3)) { chip('もうそこにあるで', '', 800); return; }
+    keepSel(() => S.marks.push({ t, name:'' }));
     renderMarks(); saveState();
-    const i = S.marks.findIndex(m => m.t === t);
-    chip('＋ ' + (S.marks[i].name || 'M' + (i + 1)), fmt1(t), 800);
+    const i = allMarks().findIndex(m => m.t === t);
+    chip('＋ ' + markName(allMarks()[i], i), fmt1(t), 800);
     const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
   };
+  function curMarkIdx(){ let idx = 0; allMarks().forEach((m, i) => { if (m.t <= v.currentTime + 0.15) idx = i; }); return idx; }
+  function markCur(){ const i = curMarkIdx(); document.querySelectorAll('.mc').forEach((b, j) => b.classList.toggle('cur', j === i && j !== S.sel)); }
   $('mPrev').onclick = () => {
-    if (!S.marks.length) return;
-    let i = curMarkIdx();
-    if (i >= 0 && v.currentTime - S.marks[i].t < 1.2) i--; // 直前に飛んだばかりならさらに前へ
-    jumpMark(Math.max(0, i));
+    let i = curMarkIdx(); const L = allMarks();
+    if (v.currentTime - L[i].t < 1.2) i--; // 頭の直後ならさらに前へ
+    selectMark(Math.max(0, i), true);
   };
-  $('mNext').onclick = () => { const i = S.marks.findIndex(m => m.t > v.currentTime + 0.2); if (i >= 0) jumpMark(i); else chip('最後のマーカーやで', '', 800); };
-  // タップ＝ジャンプ、長押し＝メニュー
+  $('mNext').onclick = () => { const L = allMarks(), i = L.findIndex(m => m.t > v.currentTime + 0.2); if (i >= 0) selectMark(i, true); else chip('最後のマーカーやで', '', 800); };
+  // タップ＝選んで飛ぶ、長押し＝メニュー
   let lp = null, lpFired = false;
   $('marks').addEventListener('touchstart', e => {
     const b = e.target.closest('.mc'); if (!b) return;
@@ -630,26 +690,30 @@
   }, { passive:true });
   $('marks').addEventListener('touchmove', () => clearTimeout(lp), { passive:true });
   $('marks').addEventListener('touchend', () => clearTimeout(lp));
-  $('marks').addEventListener('click', e => { const b = e.target.closest('.mc'); if (!b) return; if (lpFired) { lpFired = false; return; } jumpMark(Number(b.dataset.i)); });
+  $('marks').addEventListener('click', e => { const b = e.target.closest('.mc'); if (!b) return; if (lpFired) { lpFired = false; return; } selectMark(Number(b.dataset.i), true); });
   $('marks').addEventListener('contextmenu', e => e.preventDefault());
-  function openMs(i){ msIdx = i; const m = S.marks[i]; $('msTitle').textContent = (m.name || 'M' + (i + 1)) + '（' + fmt1(m.t) + '）'; $('msheet').classList.add('open'); }
+  function openMs(i){
+    msIdx = i; const m = allMarks()[i];
+    $('msTitle').textContent = markName(m, i) + '（' + fmt1(m.t) + '）';
+    ['msHere','msName','msDel'].forEach(id => $(id).style.display = m.fixed ? 'none' : '');
+    $('msheet').classList.add('open');
+  }
   const closeMs = () => $('msheet').classList.remove('open');
   $('msheet').addEventListener('click', e => { if (e.target.id === 'msheet') closeMs(); });
   $('msCancel').onclick = closeMs;
-  $('msLoop').onclick = () => {
-    const m = S.marks[msIdx], n = S.marks[msIdx + 1];
-    S.a = m.t; S.b = n ? n.t : v.duration; S.loop = true; loops = 0; updateLoopUI(); saveState(); closeMs();
-    chip('ループ', `${fmt1(S.a)} 〜 ${fmt1(S.b)}`, 1000); startFromA();
-  };
-  $('msA').onclick = () => { setA(S.marks[msIdx].t); closeMs(); };
-  $('msB').onclick = () => { setB(S.marks[msIdx].t); closeMs(); };
-  $('msHere').onclick = () => { S.marks[msIdx].t = Math.round(v.currentTime * 10) / 10; renderMarks(); saveState(); closeMs(); };
+  $('msLoop').onclick = () => { closeMs(); S.loop = true; selectMark(msIdx, true); };
+  $('msHere').onclick = () => { const mk = S.marks[msIdx - 1]; keepSel(() => mk.t = Math.round(v.currentTime * 10) / 10); renderMarks(); saveState(); closeMs(); };
   $('msName').onclick = () => {
-    const m = S.marks[msIdx], nm = prompt('マーカーの名前（例：サビ、フィル、Aメロ）', m.name || '');
-    if (nm !== null) { m.name = nm.trim().slice(0, 12); renderMarks(); saveState(); }
+    const mk = S.marks[msIdx - 1], nm = prompt('マーカーの名前（例：サビ、フィル、Aメロ）', mk.name || '');
+    if (nm !== null) { mk.name = nm.trim().slice(0, 12); renderMarks(); saveState(); }
     closeMs();
   };
-  $('msDel').onclick = () => { S.marks.splice(msIdx, 1); renderMarks(); saveState(); closeMs(); };
+  $('msDel').onclick = () => {
+    const i = msIdx;
+    S.marks.splice(i - 1, 1);
+    if (S.sel >= i) S.sel = Math.max(0, S.sel - 1);
+    renderMarks(); saveState(); closeMs();
+  };
 
   // ================= タイムライン =================
   const tl = $('tl');
@@ -744,18 +808,21 @@
     for (let s2 = Math.ceil(tAt(0) / tick) * tick; s2 < tAt(W); s2 += tick) { if (s2 < 0 || s2 > dur) continue; const px = xAt(s2); x.fillRect(px, H - 10 * dpr, dpr, 4 * dpr); x.fillText(fmt(s2), px, H - 1.5 * dpr); }
   }
   // 波形の操作：ドラッグで移動（離したら飛ぶ）、2本指で拡大縮小、タップで再生・停止
-  const wb = $('wbox'); let wt = null, wpz = null;
+  const wb = $('wbox'); let wt = null, wpz = null, wGlide = 0, wGliding = false;
   const wx = t => { const r = wb.getBoundingClientRect(); return t.clientX - r.left; };
   wb.addEventListener('touchstart', e => {
     e.preventDefault();
     if (e.touches.length >= 2) { wpz = { d0:Math.abs(wx(e.touches[0]) - wx(e.touches[1])) || 1, z0:wzoom }; wt = null; return; }
-    wt = { x:wx(e.touches[0]), base:v.currentTime, t:Date.now(), moved:false };
+    cancelAnimationFrame(wGlide); if (wGliding) { wGliding = false; if (wDragT != null) seek(wDragT); }
+    const x0 = wx(e.touches[0]);
+    wt = { x:x0, base:v.currentTime, t:Date.now(), moved:false, lx:x0, lt:performance.now(), vx:0 };
   }, { passive:false });
   wb.addEventListener('touchmove', e => {
     e.preventDefault();
     if (wpz && e.touches.length >= 2) { wzoom = clamp(wpz.z0 * (Math.abs(wx(e.touches[0]) - wx(e.touches[1])) || 1) / wpz.d0, 4, 600); store.set('wzoom', wzoom); kick(); return; }
     if (!wt) return;
-    const dx = wx(e.touches[0]) - wt.x;
+    const cx = wx(e.touches[0]), dx = cx - wt.x, now = performance.now();
+    wt.vx = wt.vx * 0.25 + ((cx - wt.lx) / Math.max(8, now - wt.lt)) * 0.75; wt.lx = cx; wt.lt = now;
     if (!wt.moved && Math.abs(dx) > 6) { wt.moved = true; wDrag = true; kick(); }
     if (wt.moved) {
       wDragT = clamp(wt.base - dx / wzoom, 0, v.duration || 0);
@@ -767,12 +834,60 @@
     e.preventDefault();
     if (e.touches.length > 0) return;
     if (wpz) { wpz = null; return; }
-    if (wt && wt.moved && wDragT != null) seek(wDragT);
-    else if (wt && Date.now() - wt.t < 350) togglePlay();
-    wt = null; wDrag = false; wDragT = null; $('wlabel').style.display = 'none'; kick();
+    if (wt && wt.moved && wDragT != null) {
+      // 指を離しても勢いで滑る。止まったところへ飛ぶ
+      let vx = performance.now() - wt.lt > 80 ? 0 : wt.vx * 1.6;
+      const base = wt.base;
+      wt = null;
+      if (Math.abs(vx) < 0.05) { seek(wDragT); endWDrag(); return; }
+      wGliding = true;
+      const glide = () => {
+        wDragT = clamp(wDragT - vx * 16 / wzoom, 0, v.duration || 0); vx *= 0.94;
+        const d = wDragT - base;
+        $('wlabel').innerHTML = fmt1(wDragT) + `<em>${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}秒</em>`;
+        kick();
+        if (Math.abs(vx) > 0.03 && wDragT > 0 && wDragT < (v.duration || 0)) wGlide = requestAnimationFrame(glide);
+        else { wGliding = false; seek(wDragT); endWDrag(); }
+      };
+      wGlide = requestAnimationFrame(glide);
+      return;
+    }
+    if (wt && Date.now() - wt.t < 350) togglePlay();
+    wt = null; endWDrag();
   };
+  function endWDrag(){ wDrag = false; wDragT = null; $('wlabel').style.display = 'none'; kick(); }
   wb.addEventListener('touchend', wEnd, { passive:false });
   wb.addEventListener('touchcancel', wEnd, { passive:false });
+
+
+  // ================= 映像の大きさ =================
+  const VS = ['L','M','S','0'], VS_LABEL = { L:'映像：大', M:'映像：中', S:'映像：小', '0':'映像なし' };
+  let vsize = store.get('vsize', 'L');
+  function applyVs(){ VS.forEach(k => $('app').classList.toggle('vs-' + k, k === vsize)); setTimeout(resizeWave, 60); }
+  $('vsBtn').onclick = () => { vsize = VS[(VS.indexOf(vsize) + 1) % VS.length]; store.set('vsize', vsize); applyVs(); chip(VS_LABEL[vsize], '小さくするとボタンが大きくなる', 1000); };
+
+  // ================= セクションの並べ替え =================
+  function applyOrder(){
+    const order = store.get('secOrder', ['ml','speed','prac']), box = $('secs');
+    order.forEach(k => { const el = box.querySelector(`.sec[data-k="${k}"]`); if (el) box.appendChild(el); });
+  }
+  $('secs').addEventListener('click', e => {
+    const b = e.target.closest('[data-mv]'); if (!b) return;
+    const sec = b.closest('.sec'), box = $('secs'), d = Number(b.dataset.mv);
+    if (d < 0 && sec.previousElementSibling) box.insertBefore(sec, sec.previousElementSibling);
+    if (d > 0 && sec.nextElementSibling) box.insertBefore(sec.nextElementSibling, sec);
+    store.set('secOrder', [...box.children].map(x => x.dataset.k));
+  });
+
+  // ================= ファイルの再読み込み（固まったとき用） =================
+  $('rlBtn').onclick = () => {
+    if (!curBlob) return;
+    S.pos = v.currentTime; const wasPlaying = !v.paused;
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(curBlob); v.src = url; v.load();
+    v.addEventListener('loadedmetadata', () => { if (wasPlaying) v.play().catch(()=>{}); }, { once:true });
+    chip('↻ 読み込み直し', fmt1(S.pos) + ' から', 1200);
+  };
 
   // ================= 毎フレームの処理（ループ判定・表示） =================
   let raf = 0;
@@ -792,7 +907,7 @@
   }
   v.addEventListener('seeked', kick);
 
-  applyOpts(); applyRate();
+  applyOpts(); applyRate(); applyVs(); applyOrder();
   renderRecent();
 })();
 </script>
