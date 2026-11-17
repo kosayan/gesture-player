@@ -192,10 +192,15 @@
   .sh { margin-bottom:8px; }
   .hint { font-size:11px; }
   /* 取り消しボタン */
-  #undoBtn { width:auto; padding:0 12px; height:36px; border-radius:18px; background:#26262b; color:#fff; font-size:14px; font-weight:800; gap:4px; margin-right:2px; }
-  #undoBtn svg { width:18px; height:18px; }
-  #undoBtn b { font-size:11px; color:var(--mute); font-weight:700; }
-  #undoBtn.dis { opacity:.35; }
+  header .ib { width:36px; }
+  header { gap:2px; padding:0 4px; }
+  @media (max-width: 440px) { header .ttl { display:none; } header .ur { margin-left:auto; } }
+  .ur { display:flex; background:#26262b; border-radius:18px; height:36px; margin-right:2px; overflow:hidden; flex-shrink:0; }
+  .ur .ib { width:auto; height:36px; padding:0 10px; color:#fff; font-size:13px; font-weight:800; gap:3px; }
+  .ur .ib + .ib { border-left:1px solid #3a3a40; }
+  .ur svg { width:17px; height:17px; }
+  .ur b { font-size:10px; color:var(--mute); font-weight:700; }
+  .ur .dis { opacity:.32; }
   #mDel { flex:0 0 46px; color:#ff7b7b; font-size:18px; }
   .k.big { height:var(--kb); font-size:var(--kf); }
   .k.play { height:var(--kp); }
@@ -226,7 +231,10 @@
     <button class="ib" id="fsBtn" aria-label="全画面"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="ib" id="vsBtn" aria-label="映像の大きさ"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/></svg></button>
     <div class="ttl" id="ttl">—</div>
-    <button class="ib dis" id="undoBtn" aria-label="取り消し"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>戻す<b id="undoN"></b></button>
+    <div class="ur">
+      <button class="ib dis" id="undoBtn" aria-label="戻す"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>戻す<b id="undoN"></b></button>
+      <button class="ib dis" id="redoBtn" aria-label="進む">進む<b id="redoN"></b><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+    </div>
     <button class="ib" id="rlBtn" aria-label="ファイルを読み込み直す"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>
     <button class="ib" id="setBtn" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </header>
@@ -379,7 +387,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-9';
+  const APP_VERSION = '2026.11.17-10';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -418,16 +426,19 @@
   const blank = () => ({ marks:[], a:null, b:null, sel:0, span:1, loop:false, rate:1, bpm:120, mirror:false, pos:0 });
   let S = blank();
   // 取り消し用の履歴（再生位置以外が変わったら、変わる前の状態を最大50回分積む）
-  let undoStack = [], lastFull = null, lastKey = null;
+  let undoStack = [], redoStack = [], lastFull = null, lastKey = null;
   const snapFull = () => { const { pos, a, b, ...rest } = S; return JSON.stringify(rest); };
   const snapKey = () => { const { pos, a, b, sel, nt, ...rest } = S; return JSON.stringify(rest); }; // マーカーを選ぶだけでは積まへん
-  function resetUndo(){ undoStack = []; lastFull = snapFull(); lastKey = snapKey(); updateUndoBtn(); }
+  function resetUndo(){ undoStack = []; redoStack = []; lastFull = snapFull(); lastKey = snapKey(); updateUndoBtn(); }
   function trackUndo(){
     const k = snapKey();
-    if (lastKey !== null && k !== lastKey) { undoStack.push(lastFull); if (undoStack.length > 50) undoStack.shift(); }
+    if (lastKey !== null && k !== lastKey) { undoStack.push(lastFull); if (undoStack.length > 50) undoStack.shift(); redoStack = []; } // 新しい操作をしたら「進む」は消える
     lastKey = k; lastFull = snapFull(); updateUndoBtn();
   }
-  function updateUndoBtn(){ $('undoBtn').classList.toggle('dis', !undoStack.length); $('undoN').textContent = undoStack.length ? undoStack.length : ''; }
+  function updateUndoBtn(){
+    $('undoBtn').classList.toggle('dis', !undoStack.length); $('undoN').textContent = undoStack.length || '';
+    $('redoBtn').classList.toggle('dis', !redoStack.length); $('redoN').textContent = redoStack.length || '';
+  }
   function saveState(){ if (!curId) return; S.pos = v.currentTime || S.pos; trackUndo(); store.set('st_' + curId, S); }
   // id = 名前_サイズ_更新日時。更新日時は端末やコピーで変わるので、見つからなければ名前＋サイズで探す
   function findStateKey(id){
@@ -1195,15 +1206,25 @@
 
 
   // ================= 取り消し =================
-  $('undoBtn').onclick = () => {
-    if (!undoStack.length) { chip('取り消せる操作がないで', '', 900); return; }
-    const prev = JSON.parse(undoStack.pop()), pos = v.currentTime;
-    S = Object.assign(blank(), prev, { pos });
+  function restoreSnap(json){
+    const pos = v.currentTime;
+    S = Object.assign(blank(), JSON.parse(json), { pos });
     lastFull = snapFull(); lastKey = snapKey();
     store.set('st_' + curId, S);
     v.classList.toggle('mirror', !!S.mirror); applyVz(); $('bpmV').textContent = S.bpm;
     loops = 0; applyRate(); renderMarks(); updateUndoBtn();
-    chip('↶ 元に戻した', undoStack.length ? `あと${undoStack.length}回戻せる` : '', 900);
+  }
+  $('undoBtn').onclick = () => {
+    if (!undoStack.length) { chip('戻せる操作がないで', '', 900); return; }
+    redoStack.push(snapFull());
+    restoreSnap(undoStack.pop());
+    chip('↶ 戻した', undoStack.length ? `あと${undoStack.length}回戻せる` : '', 900);
+  };
+  $('redoBtn').onclick = () => {
+    if (!redoStack.length) { chip('進める操作がないで', '', 900); return; }
+    undoStack.push(snapFull());
+    restoreSnap(redoStack.pop());
+    chip('↷ 進めた', redoStack.length ? `あと${redoStack.length}回進める` : '', 900);
   };
   // 選択中のマーカーを削除（頭は消されへん）
   $('mDel').onclick = () => {
