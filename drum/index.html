@@ -12,7 +12,7 @@
 <meta name="theme-color" content="#000000">
 <title>ドラム練習プレイヤー</title>
 <style>
-  :root { --acc:#ffb020; --a:#38c6ff; --b:#5dff9b; --mk:#ffd84a; --bg:#0b0b0d; --card:#17171a; --line:#2a2a2e; --mute:rgba(255,255,255,.55); }
+  :root { --acc:#ffb020; --a:#38c6ff; --b:#5dff9b; --mk:#ff9a1f; --bg:#0b0b0d; --card:#17171a; --line:#2a2a2e; --mute:rgba(255,255,255,.55); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html,body { margin:0; height:100%; background:var(--bg); color:#fff; overflow:hidden;
@@ -31,6 +31,15 @@
   #vbox { position:relative; background:#000; height:min(56.25vw, 34vh); width:100%; min-width:0; overflow:hidden; contain:strict; }
   #v { position:absolute; left:0; top:0; width:100%; height:100%; max-width:100%; max-height:100%; object-fit:contain; }
   #side, .row, .sec { min-width:0; }
+  /* 全画面：映像だけを画面いっぱいに、下に最小限のボタン */
+  #fsBar { display:none; position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 12px); justify-content:center; gap:8px; z-index:5; }
+  .fsb { height:42px; min-width:54px; padding:0 14px; border:1px solid rgba(255,255,255,.25); border-radius:21px; background:rgba(30,30,34,.7); color:#fff; font-size:15px; font-weight:800; display:flex; align-items:center; justify-content:center; white-space:nowrap; }
+  #app.full #vchip { bottom:calc(env(safe-area-inset-bottom) + 66px); }
+  .fsb svg { width:20px; height:20px; fill:currentColor; }
+  .fsb.on { background:var(--acc); color:#000; }
+  #app.full #vbox { position:fixed; inset:0; height:auto !important; z-index:30; display:block !important; }
+  #app.full #fsBar { display:flex; }
+  #app.full #vtap { padding-top:calc(env(safe-area-inset-top) + 6px); }
   #v.mirror { transform:scaleX(-1); }
   #vchip { position:absolute; right:10px; bottom:8px; font-size:20px; font-weight:800; color:rgba(255,255,255,.85); text-shadow:0 1px 4px rgba(0,0,0,.7); opacity:0; transition:opacity .12s; pointer-events:none; text-align:right; font-variant-numeric:tabular-nums; }
   #vchip small { display:block; font-size:12px; font-weight:600; color:rgba(255,255,255,.7); }
@@ -107,6 +116,15 @@
   #marks::-webkit-scrollbar { display:none; }
   .mc { flex:0 0 auto; min-width:76px; height:58px; border:0; border-radius:14px; background:#241f0e; border:2px solid rgba(255,216,74,.35); padding:4px 12px; text-align:left; display:flex; flex-direction:column; justify-content:center; gap:3px; }
   .mc.pair { padding:4px 10px; }
+  .mc { position:relative; padding-left:24px !important; }
+  .mc.fixed { padding-left:12px !important; }
+  .mc .no { position:absolute; left:5px; top:5px; min-width:15px; height:15px; border-radius:4px; background:var(--mk); color:#000; font-size:10px; font-weight:900; font-style:normal; line-height:15px; text-align:center; }
+  .mc.sel .no { background:#000; color:var(--mk); }
+  .mc .st small { color:var(--mk); } .mc.sel .st small { color:#000; }
+  .k.tgt.st { color:var(--mk); } .k.tgt.en { color:var(--b); }
+  .k.tgt.st.on { background:var(--mk); color:#000; } .k.tgt.en.on { background:var(--b); color:#000; }
+  .k.tgt.dis { opacity:.35; }
+  #endSet { color:var(--b); }
   .mc .en { display:flex; align-items:center; gap:5px; border-top:1px dashed rgba(255,255,255,.25); padding-top:3px; }
   .mc .en span { font-size:11px; font-weight:900; color:#000; background:var(--b); border-radius:4px; padding:0 4px; }
   .mc .en small { margin:0; }
@@ -205,6 +223,7 @@
   <header>
     <button class="ib" id="homeBtn" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <button class="ib" id="mirBtn" aria-label="左右反転"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7L3 12l5 5V7z"/><path d="M16 7l5 5-5 5V7z"/></svg></button>
+    <button class="ib" id="fsBtn" aria-label="全画面"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="ib" id="vsBtn" aria-label="映像の大きさ"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/></svg></button>
     <div class="ttl" id="ttl">—</div>
     <button class="ib dis" id="undoBtn" aria-label="取り消し"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>戻す<b id="undoN"></b></button>
@@ -217,6 +236,7 @@
     <div id="vtap">タップ＝再生・停止　長押し＝倍速</div>
     <div id="count">1</div>
     <div id="vchip"></div>
+    <div id="fsBar"><button class="fsb" id="fsBack">−2</button><button class="fsb" id="fsPlay"></button><button class="fsb" id="fsFwd">+2</button><button class="fsb" id="fsLoop">ループ</button><button class="fsb" id="fsExit" aria-label="全画面を終わる">✕</button></div>
   </div>
 
   <div id="wbox"><canvas id="wave"></canvas><div id="wph"></div><div id="wmsg"></div><div id="wlabel"></div></div>
@@ -258,15 +278,19 @@
           <button class="k big" id="spanP">範囲 ＋</button>
         </div>
         <div class="row">
+          <button class="k sm tgt st" id="tgtS">始まりを動かす</button>
+          <button class="k sm tgt en" id="tgtE">終わりを動かす</button>
+        </div>
+        <div class="row">
           <button class="k sm" id="selM">◀ 0.1秒</button>
-          <button class="k sm" id="selInfo" style="flex:1.6; background:#202024">選択中：頭</button>
+          <div class="k sm" id="selInfo" style="flex:1.6; background:#202024"></div>
           <button class="k sm" id="selP">0.1秒 ▶</button>
         </div>
         <div class="row">
           <button class="k sm" id="endSet" style="color:var(--b)">＋ 終わりをここに</button>
           <button class="k sm" id="endClr">終わりを消す</button>
         </div>
-        <div class="hint">マーカーをタップ＝そこへ飛ぶ。ループONなら、そのマーカーの「終わり」まで（なければ次のマーカーまで）を繰り返す。範囲＋で複数つなぐときは「始まり」だけを区切りに使う。長押しで名前・移動・削除</div>
+        <div class="hint"><b style="color:var(--mk)">始まり＝オレンジ</b>、<b style="color:var(--b)">終わり＝緑</b>。終わりは置いた位置の直前のマーカーに付く。ループONなら、そのマーカーの終わりまで（なければ次のマーカーまで）を繰り返す。範囲＋で複数つなぐときは始まりだけを区切りに使う。長押しで名前・移動・削除</div>
       </div>
 
       <!-- 速度 -->
@@ -346,7 +370,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-6';
+  const APP_VERSION = '2026.11.17-7';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -494,6 +518,7 @@
     setTimeout(resizeWave, 0);
     $('side').scrollTop = 0;
     v.classList.toggle('mirror', !!S.mirror);
+    vz.s = 1; vz.x = vz.y = 0; applyVz();
     loops = 0; trainerOff();
     applyRate(); applyOpts(); renderMarks(); updateLoopUI(); $('bpmV').textContent = S.bpm;
     try { if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title:name, artist:'ドラム練習プレイヤー' });
@@ -529,17 +554,43 @@
   // 映像：タップ＝再生・停止、長押し＝押してる間だけ速度を変える
   let vHold = null, vHolding = false, vHoldPaused = false, vTouch = false;
   const vb = $('vbox');
+  const vz = { s:1, x:0, y:0 }; let vpz = null, vMulti = false;
+  function applyVz(){
+    const m = S.mirror ? -1 : 1;
+    v.style.transform = vz.s > 1.001 ? `translate(${vz.x}px, ${vz.y}px) scale(${vz.s * m}, ${vz.s})` : (S.mirror ? 'scaleX(-1)' : '');
+  }
+  const vInfo = ts => { const r = vb.getBoundingClientRect(), a = ts[0], b = ts[1];
+    return { d:Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, mx:(a.clientX + b.clientX) / 2 - r.left, my:(a.clientY + b.clientY) / 2 - r.top, w:r.width, h:r.height }; };
   vb.addEventListener('touchstart', e => {
-    vTouch = true; clearTimeout(vHold);
+    if (e.touches.length >= 2) {
+      e.preventDefault(); clearTimeout(vHold); vMulti = true;
+      if (vHolding) { vHolding = false; v.playbackRate = S.rate; $('vchip').style.opacity = 0; if (vHoldPaused) v.pause(); }
+      const i = vInfo(e.touches);
+      vpz = { d0:i.d, s0:vz.s, qx:(i.mx - i.w / 2 - vz.x) / vz.s, qy:(i.my - i.h / 2 - vz.y) / vz.s };
+      return;
+    }
+    vTouch = true; vMulti = false; clearTimeout(vHold);
     vHold = setTimeout(() => {
       vHolding = true; vHoldPaused = v.paused;
       v.playbackRate = opt.hold; if (v.paused) v.play().catch(()=>{});
       $('vchip').innerHTML = '▶▶ ' + opt.hold + '倍<small>長押し中</small>'; $('vchip').style.opacity = 1; clearTimeout(chipT);
     }, 350);
   }, { passive:true });
-  vb.addEventListener('touchmove', () => { if (!vHolding) clearTimeout(vHold); }, { passive:true });
+  vb.addEventListener('touchmove', e => {
+    if (vpz && e.touches.length >= 2) {
+      e.preventDefault();
+      const i = vInfo(e.touches), sc = clamp(vpz.s0 * i.d / vpz.d0, 1, 5);
+      const mx = (sc - 1) * i.w / 2, my = (sc - 1) * i.h / 2;
+      vz.s = sc; vz.x = clamp(i.mx - i.w / 2 - vpz.qx * sc, -mx, mx); vz.y = clamp(i.my - i.h / 2 - vpz.qy * sc, -my, my);
+      applyVz(); chip('🔍 ' + sc.toFixed(1) + '倍', 'つまむと戻る', 700);
+      return;
+    }
+    if (!vHolding) clearTimeout(vHold);
+  }, { passive:false });
   vb.addEventListener('touchend', e => {
     e.preventDefault(); clearTimeout(vHold);
+    if (e.touches.length > 0) return;
+    if (vMulti) { vMulti = false; vpz = null; if (vz.s < 1.05) { vz.s = 1; vz.x = vz.y = 0; applyVz(); } return; }
     if (vHolding) { vHolding = false; v.playbackRate = S.rate; $('vchip').style.opacity = 0; if (vHoldPaused) v.pause(); }
     else togglePlay();
   }, { passive:false });
@@ -550,7 +601,7 @@
   $('fSmall').onclick = () => skipBy(opt.s); $('fBig').onclick = () => skipBy(opt.l);
   let chipT = null;
   function chip(main, sub, ms){ $('vchip').innerHTML = main + (sub ? `<small>${sub}</small>` : ''); $('vchip').style.opacity = 1; clearTimeout(chipT); chipT = setTimeout(() => $('vchip').style.opacity = 0, ms || 900); }
-  $('mirBtn').onclick = () => { S.mirror = !S.mirror; v.classList.toggle('mirror', S.mirror); $('mirBtn').style.color = S.mirror ? 'var(--acc)' : ''; saveState(); chip(S.mirror ? '左右反転' : '反転なし', '', 800); };
+  $('mirBtn').onclick = () => { S.mirror = !S.mirror; v.classList.toggle('mirror', S.mirror); applyVz(); $('mirBtn').style.color = S.mirror ? 'var(--acc)' : ''; saveState(); chip(S.mirror ? '左右反転' : '反転なし', '', 800); };
 
   // ================= 速度 =================
   const PRESETS = [50, 60, 70, 75, 80, 90, 100];
@@ -647,8 +698,10 @@
     $('loopInfo').textContent = has ? `${fmt1(S.a)} 〜 ${fmt1(S.b)}` : '';
     const sm = L[S.sel];
     if (S.nt === 'end' && endOf(sm) == null) S.nt = 'start';
-    $('selInfo').innerHTML = markName(sm, S.sel) + ' ' + (S.nt === 'end' ? `<span style="color:var(--b)">終わり ${fmt1(sm.e)}</span>` : `始まり ${fmt1(sm.t)}`)
-      + (endOf(sm) != null ? '<small>　タップで始/終を切替</small>' : '');
+    const no = S.sel === 0 ? '頭' : S.sel + ' ' + markName(sm, S.sel);
+    $('selInfo').innerHTML = S.nt === 'end' ? `<span style="color:var(--b)">${no} 終わり ${fmt1(sm.e)}</span>` : `<span style="color:var(--mk)">${no} 始まり ${fmt1(sm.t)}</span>`;
+    $('tgtS').classList.toggle('on', S.nt !== 'end'); $('tgtE').classList.toggle('on', S.nt === 'end');
+    $('tgtE').classList.toggle('dis', endOf(sm) == null);
     $('endSet').textContent = endOf(sm) != null ? '終わりをここに動かす' : '＋ 終わりをここに';
     $('endClr').style.display = endOf(sm) != null ? '' : 'none';
     document.querySelectorAll('.mc').forEach((b, i) => {
@@ -663,7 +716,7 @@
     allMarks().forEach((m, i) => {
       const b = document.createElement('button'); b.className = 'mc' + (m.fixed ? ' fixed' : ''); b.dataset.i = i;
       const e = endOf(m);
-      b.innerHTML = `<div class="st"><b></b><small>${fmt1(m.t)}</small></div>` + (e != null ? `<div class="en"><span>終</span><small>${fmt1(e)}</small></div>` : '');
+      b.innerHTML = (i ? `<i class="no">${i}</i>` : '') + `<div class="st"><b></b><small>${fmt1(m.t)}</small></div>` + (e != null ? `<div class="en"><span>終</span><small>${fmt1(e)}</small></div>` : '');
       b.querySelector('b').textContent = markName(m, i);
       if (e != null) b.classList.add('pair');
       box.appendChild(b);
@@ -681,6 +734,7 @@
     S.sel = i; S.span = 1; S.nt = 'start'; loops = 0;
     updateLoopUI(); saveState();
     const m = allMarks()[i];
+    followLock = m.t;
     if (jump) {
       if (S.loop && S.b != null) startFromA();
       else { const t = Math.max(0, m.t - opt.pre); if (v.paused && opt.count > 0) { seek(t); countIn(() => v.play().catch(()=>{})); } else seek(t); }
@@ -720,21 +774,23 @@
     if (v.paused) seek(mk.t);
   };
   $('selM').onclick = () => nudgeSel(-0.1); $('selP').onclick = () => nudgeSel(0.1);
-  $('selInfo').onclick = () => {
+  $('tgtS').onclick = () => { S.nt = 'start'; updateLoopUI(); const m = allMarks()[S.sel]; if (v.paused) seek(m.t); };
+  $('tgtE').onclick = () => {
     const m = allMarks()[S.sel];
-    if (endOf(m) != null) { S.nt = S.nt === 'end' ? 'start' : 'end'; updateLoopUI(); if (v.paused) seek(S.nt === 'end' ? Math.max(0, m.e - 1) : m.t); }
-    else selectMark(S.sel, true);
+    if (endOf(m) == null) { chip('このマーカーには終わりがないで', '「＋ 終わりをここに」で付けてな', 1200); return; }
+    S.nt = 'end'; updateLoopUI(); if (v.paused) seek(Math.max(0, m.e - 1));
   };
-  // 終わりの起点（選択中のマーカーに付ける）
-  function setEndHere(i){
-    const m = allMarks()[i], t = Math.round(v.currentTime * 10) / 10;
-    if (t <= m.t + 0.2) { chip('始まりより後ろで押してな', '', 1000); return; }
-    setEnd(i, t); S.sel = i; S.span = 1; S.nt = 'end'; S.loop = true; loops = 0;
+  // 終わりの起点：置いた位置の直前にあるマーカーに必ず付く（ループは自動でONにせえへん）
+  function setEndHere(){
+    const t = Math.round(v.currentTime * 10) / 10, L = allMarks();
+    let i = 0; L.forEach((m, j) => { if (m.t < t - 0.2) i = j; });
+    if (t <= L[i].t + 0.2) { chip('始まりより後ろで押してな', '', 1000); return; }
+    setEnd(i, t); S.sel = i; S.span = 1; S.nt = 'end'; loops = 0;
     renderMarks(); saveState();
-    chip(markName(m, i) + ' 始→終ループ', `${fmt1(m.t)} 〜 ${fmt1(t)}`, 1200);
-    startFromA();
+    const no = i === 0 ? '頭' : i + ' ' + markName(L[i], i);
+    chip(no + ' の終わり', `${fmt1(L[i].t)} 〜 ${fmt1(t)}`, 1200);
   }
-  $('endSet').onclick = () => setEndHere(S.sel);
+  $('endSet').onclick = () => setEndHere();
   $('endClr').onclick = () => { setEnd(S.sel, null); S.nt = 'start'; renderMarks(); saveState(); chip('終わりを消した', '', 800); };
   $('mAdd').onclick = () => {
     const t = Math.round(v.currentTime * 10) / 10;
@@ -746,7 +802,16 @@
     const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
   };
   function curMarkIdx(){ let idx = 0; allMarks().forEach((m, i) => { if (m.t <= v.currentTime + 0.15) idx = i; }); return idx; }
-  function markCur(){ const i = curMarkIdx(); document.querySelectorAll('.mc').forEach((b, j) => b.classList.toggle('cur', j === i && j !== S.sel)); }
+  let followLock = null; // マーカーに飛んだ直後（助走中など）は自動選択を止める
+  function markCur(){
+    if (S.loop || wDrag || tlDrag != null) return;
+    if (followLock != null) { if (v.currentTime >= followLock - 0.05 || v.currentTime < followLock - 8) followLock = null; else return; }
+    const i = curMarkIdx();
+    if (i !== S.sel) {
+      S.sel = i; S.span = 1; S.nt = 'start'; updateLoopUI();
+      const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
+    }
+  }
   $('mPrev').onclick = () => {
     let i = curMarkIdx(); const L = allMarks();
     if (v.currentTime - L[i].t < 1.2) i--; // 頭の直後ならさらに前へ
@@ -777,7 +842,7 @@
   $('msheet').addEventListener('click', e => { if (e.target.id === 'msheet') closeMs(); });
   $('msCancel').onclick = closeMs;
   $('msLoop').onclick = () => { closeMs(); S.loop = true; selectMark(msIdx, true); };
-  $('msEnd').onclick = () => { closeMs(); setEndHere(msIdx); };
+  $('msEnd').onclick = () => { closeMs(); setEndHere(); };
   $('msEndClr').onclick = () => { setEnd(msIdx, null); renderMarks(); saveState(); closeMs(); };
   $('msHere').onclick = () => { const mk = S.marks[msIdx - 1]; keepSel(() => mk.t = Math.round(v.currentTime * 10) / 10); renderMarks(); saveState(); closeMs(); };
   $('msName').onclick = () => {
@@ -869,14 +934,14 @@
       const t0 = tAt(px), t1 = t0 + stp / pps;
       if (t1 < 0 || t0 > dur) continue;
       const a = peaks ? peakAt(t0 * PPS, t1 * PPS) : 0.04, h = Math.max(dpr, a * H * 0.42);
-      x.fillStyle = t0 < played ? 'rgba(255,176,32,.95)' : 'rgba(255,255,255,.5)';
+      x.fillStyle = t0 < played ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.32)';
       x.fillRect(px, mid - h, bar, h * 2);
     }
     // マーカー
     x.font = `800 ${10 * dpr}px -apple-system, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
     S.marks.forEach((m, i) => {
       const mx = xAt(m.t); if (mx < -20 * dpr || mx > W + 20 * dpr) return;
-      x.fillStyle = 'rgba(255,216,74,.85)'; x.fillRect(mx - dpr * 0.75, 0, 1.5 * dpr, H);
+      x.fillStyle = 'rgba(255,154,31,.95)'; x.fillRect(mx - dpr * 0.75, 0, 1.5 * dpr, H);
       x.fillRect(mx - 9 * dpr, 2 * dpr, 18 * dpr, 13 * dpr);
       x.fillStyle = '#000'; x.fillText(String(i + 1), mx, 8.5 * dpr);
     });
@@ -982,7 +1047,7 @@
     S = Object.assign(blank(), prev, { pos });
     lastFull = snapFull(); lastKey = snapKey();
     store.set('st_' + curId, S);
-    v.classList.toggle('mirror', !!S.mirror); $('bpmV').textContent = S.bpm;
+    v.classList.toggle('mirror', !!S.mirror); applyVz(); $('bpmV').textContent = S.bpm;
     loops = 0; applyRate(); renderMarks(); updateUndoBtn();
     chip('↶ 元に戻した', undoStack.length ? `あと${undoStack.length}回戻せる` : '', 900);
   };
@@ -994,6 +1059,24 @@
     S.marks.splice(i - 1, 1); S.sel = Math.max(0, i - 1); S.span = 1;
     renderMarks(); saveState(); chip('🗑 ' + markName(m, i) + ' を削除', '「戻す」で元に戻せる', 1200);
   };
+
+
+  // ================= 全画面 =================
+  function setFull(on){
+    $('app').classList.toggle('full', on);
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    try { if (on && req) req.call(el).catch(()=>{}); else if (!on && (document.fullscreenElement || document.webkitFullscreenElement)) (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch(e){}
+    updateFsBar();
+  }
+  function updateFsBar(){ $('fsPlay').innerHTML = v.paused && !counting ? ICON_PLAY : ICON_PAUSE; $('fsLoop').classList.toggle('on', !!(S.loop && S.b != null)); }
+  $('fsBtn').onclick = () => setFull(true);
+  $('fsExit').onclick = e => { e.stopPropagation(); setFull(false); };
+  const fsStop = el => ['touchstart','touchend','click'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
+  document.querySelectorAll('.fsb').forEach(fsStop);
+  $('fsPlay').onclick = () => { togglePlay(); setTimeout(updateFsBar, 50); };
+  $('fsBack').onclick = () => skipBy(-opt.s); $('fsFwd').onclick = () => skipBy(opt.s);
+  $('fsLoop').onclick = () => { $('loopBtn').click(); updateFsBar(); };
+  v.addEventListener('play', updateFsBar); v.addEventListener('pause', updateFsBar);
 
   // ================= 毎フレームの処理（ループ判定・表示） =================
   let raf = 0;
