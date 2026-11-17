@@ -68,6 +68,7 @@
   .tl .mk { position:absolute; top:0; width:20px; margin-left:-10px; text-align:center; font-size:10px; font-weight:800; color:#000; pointer-events:none; }
   .tl .mk i { display:block; width:18px; height:14px; margin:0 auto; border-radius:3px; background:var(--mk); line-height:14px; font-style:normal; }
   .tl .mk b { display:block; width:2px; height:30px; margin:0 auto; background:var(--mk); opacity:.7; }
+  .tl .mk.end { top:22px; } .tl .mk.end i { background:var(--b); margin-top:14px; } .tl .mk.end b { display:none; }
   .times { display:flex; justify-content:space-between; font-size:13px; color:var(--mute); font-variant-numeric:tabular-nums; }
   .times .now { color:#fff; font-weight:800; font-size:16px; }
   #tlLabel { position:absolute; top:-26px; transform:translateX(-50%); font-size:13px; font-weight:800; background:#fff; color:#000; padding:2px 8px; border-radius:6px; display:none; white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -99,7 +100,13 @@
   /* マーカー */
   #marks { display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:2px 0 4px; margin-top:8px; scrollbar-width:none; }
   #marks::-webkit-scrollbar { display:none; }
-  .mc { flex:0 0 auto; min-width:76px; height:58px; border:0; border-radius:14px; background:#241f0e; border:2px solid rgba(255,216,74,.35); padding:4px 12px; text-align:left; }
+  .mc { flex:0 0 auto; min-width:76px; height:58px; border:0; border-radius:14px; background:#241f0e; border:2px solid rgba(255,216,74,.35); padding:4px 12px; text-align:left; display:flex; flex-direction:column; justify-content:center; gap:3px; }
+  .mc.pair { padding:4px 10px; }
+  .mc .en { display:flex; align-items:center; gap:5px; border-top:1px dashed rgba(255,255,255,.25); padding-top:3px; }
+  .mc .en span { font-size:11px; font-weight:900; color:#000; background:var(--b); border-radius:4px; padding:0 4px; }
+  .mc .en small { margin:0; }
+  .mc.sel .en { border-top-color:rgba(0,0,0,.3); }
+  #selInfo small { font-size:10px; opacity:.6; }
   .mc b { display:block; font-size:15px; font-weight:900; color:var(--mk); white-space:nowrap; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
   .mc small { display:block; font-size:12px; color:rgba(255,255,255,.7); margin-top:2px; font-variant-numeric:tabular-nums; }
   .mc.cur { background:var(--mk); } .mc.cur b, .mc.cur small { color:#000; }
@@ -238,7 +245,11 @@
           <button class="k sm" id="selInfo" style="flex:1.6; background:#202024">選択中：頭</button>
           <button class="k sm" id="selP">0.1秒 ▶</button>
         </div>
-        <div class="hint">マーカーをタップ＝そこへ飛ぶ。ループONなら、そのマーカーから次のマーカーまでを繰り返す（範囲＋で次の区間までつなげる）。長押しで名前・移動・削除</div>
+        <div class="row">
+          <button class="k sm" id="endSet" style="color:var(--b)">＋ 終わりをここに</button>
+          <button class="k sm" id="endClr">終わりを消す</button>
+        </div>
+        <div class="hint">マーカーをタップ＝そこへ飛ぶ。ループONなら、そのマーカーの「終わり」まで（なければ次のマーカーまで）を繰り返す。範囲＋で複数つなぐときは「始まり」だけを区切りに使う。長押しで名前・移動・削除</div>
       </div>
 
       <!-- 速度 -->
@@ -277,6 +288,8 @@
 <div id="msheet"><div class="panel">
   <h3 id="msTitle">マーカー</h3>
   <button class="k" id="msLoop">ここから次のマーカーまでループ</button>
+  <button class="k" id="msEnd">終わりを今の位置に付ける</button>
+  <button class="k" id="msEndClr">終わりを消す</button>
   <button class="k" id="msHere">今の位置に動かす</button>
   <button class="k" id="msName">名前を変える</button>
   <button class="k danger" id="msDel">削除</button>
@@ -316,7 +329,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-4';
+  const APP_VERSION = '2026.11.17-5';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -584,14 +597,17 @@
   // ================= マーカー＆ループ（統合） =================
   // 「頭(0:00)」＋マーカーを区切りにして、選んだマーカーから次のマーカーまで（範囲＋で延長）をループする
   let loops = 0, msIdx = -1;
-  const allMarks = () => [{ t:0, name:'頭', fixed:true }, ...S.marks];
+  const allMarks = () => [{ t:0, name:'頭', fixed:true, e:S.headEnd || null }, ...S.marks];
+  const endOf = m => m.e != null && m.e > m.t + 0.2 ? m.e : null;
+  const setEnd = (i, val) => { if (i === 0) S.headEnd = val; else S.marks[i - 1].e = val; };
   const markName = (m, i) => m.fixed ? '頭' : (m.name || ('M' + i));
   function sortMarks(){ S.marks.sort((a, b) => a.t - b.t); }
   function syncAB(){
     const L = allMarks();
     S.sel = clamp(S.sel || 0, 0, L.length - 1);
     S.span = clamp(S.span || 1, 1, Math.max(1, L.length - S.sel));
-    const a = L[S.sel].t, ei = S.sel + S.span, b = ei < L.length ? L[ei].t : (v.duration || 0);
+    const m = L[S.sel], a = m.t, ei = S.sel + S.span;
+    const b = S.span === 1 && endOf(m) != null ? endOf(m) : (ei < L.length ? L[ei].t : (v.duration || 0));
     S.a = a; S.b = b > a + 0.2 ? b : null;
   }
   function updateLoopUI(){
@@ -602,7 +618,11 @@
     $('loopCnt').textContent = S.loop && has ? `${loops}回目` + (trn.on ? `・${Math.round(S.rate * 100)}%` : '') : '';
     $('loopInfo').textContent = has ? `${fmt1(S.a)} 〜 ${fmt1(S.b)}` : '';
     const sm = L[S.sel];
-    $('selInfo').textContent = '選択中：' + markName(sm, S.sel) + ' ' + fmt1(sm.t);
+    if (S.nt === 'end' && endOf(sm) == null) S.nt = 'start';
+    $('selInfo').innerHTML = markName(sm, S.sel) + ' ' + (S.nt === 'end' ? `<span style="color:var(--b)">終わり ${fmt1(sm.e)}</span>` : `始まり ${fmt1(sm.t)}`)
+      + (endOf(sm) != null ? '<small>　タップで始/終を切替</small>' : '');
+    $('endSet').textContent = endOf(sm) != null ? '終わりをここに動かす' : '＋ 終わりをここに';
+    $('endClr').style.display = endOf(sm) != null ? '' : 'none';
     document.querySelectorAll('.mc').forEach((b, i) => {
       b.classList.toggle('sel', i === S.sel);
       b.classList.toggle('inloop', S.loop && has && i > S.sel && i < S.sel + S.span);
@@ -614,8 +634,10 @@
     const box = $('marks'); box.innerHTML = '';
     allMarks().forEach((m, i) => {
       const b = document.createElement('button'); b.className = 'mc' + (m.fixed ? ' fixed' : ''); b.dataset.i = i;
-      b.innerHTML = `<b></b><small>${fmt1(m.t)}</small>`;
+      const e = endOf(m);
+      b.innerHTML = `<div class="st"><b></b><small>${fmt1(m.t)}</small></div>` + (e != null ? `<div class="en"><span>終</span><small>${fmt1(e)}</small></div>` : '');
       b.querySelector('b').textContent = markName(m, i);
+      if (e != null) b.classList.add('pair');
       box.appendChild(b);
     });
     updateLoopUI();
@@ -628,7 +650,7 @@
     S.sel = i < 0 ? 0 : i;
   }
   function selectMark(i, jump){
-    S.sel = i; S.span = 1; loops = 0;
+    S.sel = i; S.span = 1; S.nt = 'start'; loops = 0;
     updateLoopUI(); saveState();
     const m = allMarks()[i];
     if (jump) {
@@ -656,14 +678,36 @@
   // 選択中のマーカーを0.1秒ずつ動かす（頭は動かへん）
   const nudgeSel = d => {
     const L = allMarks(), m = L[S.sel];
+    if (S.nt === 'end' && endOf(m) != null) {
+      const ne = Math.round((m.e + d) * 10) / 10;
+      if (ne <= m.t + 0.2) { chip('始まりより後ろにしてな', '', 800); return; }
+      setEnd(S.sel, Math.min(ne, v.duration || ne)); renderMarks(); saveState(); chip('終わり ' + fmt1(ne), '', 600);
+      if (v.paused) seek(Math.max(0, ne - 1));
+      return;
+    }
     if (m.fixed) { chip('頭は動かされへん', '', 800); return; }
     const mk = S.marks[S.sel - 1];
-    keepSel(() => { mk.t = Math.max(0.1, Math.round((mk.t + d) * 10) / 10); });
+    keepSel(() => { mk.t = Math.max(0.1, Math.round((mk.t + d) * 10) / 10); if (mk.e != null && mk.e <= mk.t + 0.2) mk.e = null; });
     renderMarks(); saveState(); chip(markName(mk, S.sel) + ' ' + fmt1(mk.t), '', 600);
     if (v.paused) seek(mk.t);
   };
   $('selM').onclick = () => nudgeSel(-0.1); $('selP').onclick = () => nudgeSel(0.1);
-  $('selInfo').onclick = () => selectMark(S.sel, true);
+  $('selInfo').onclick = () => {
+    const m = allMarks()[S.sel];
+    if (endOf(m) != null) { S.nt = S.nt === 'end' ? 'start' : 'end'; updateLoopUI(); if (v.paused) seek(S.nt === 'end' ? Math.max(0, m.e - 1) : m.t); }
+    else selectMark(S.sel, true);
+  };
+  // 終わりの起点（選択中のマーカーに付ける）
+  function setEndHere(i){
+    const m = allMarks()[i], t = Math.round(v.currentTime * 10) / 10;
+    if (t <= m.t + 0.2) { chip('始まりより後ろで押してな', '', 1000); return; }
+    setEnd(i, t); S.sel = i; S.span = 1; S.nt = 'end'; S.loop = true; loops = 0;
+    renderMarks(); saveState();
+    chip(markName(m, i) + ' 始→終ループ', `${fmt1(m.t)} 〜 ${fmt1(t)}`, 1200);
+    startFromA();
+  }
+  $('endSet').onclick = () => setEndHere(S.sel);
+  $('endClr').onclick = () => { setEnd(S.sel, null); S.nt = 'start'; renderMarks(); saveState(); chip('終わりを消した', '', 800); };
   $('mAdd').onclick = () => {
     const t = Math.round(v.currentTime * 10) / 10;
     if (t < 0.3 || S.marks.some(m => Math.abs(m.t - t) < 0.3)) { chip('もうそこにあるで', '', 800); return; }
@@ -696,12 +740,17 @@
     msIdx = i; const m = allMarks()[i];
     $('msTitle').textContent = markName(m, i) + '（' + fmt1(m.t) + '）';
     ['msHere','msName','msDel'].forEach(id => $(id).style.display = m.fixed ? 'none' : '');
+    $('msLoop').textContent = endOf(m) != null ? '始まり〜終わりをループ' : 'ここから次のマーカーまでループ';
+    $('msEnd').textContent = endOf(m) != null ? '終わりを今の位置に動かす' : '終わりを今の位置に付ける';
+    $('msEndClr').style.display = endOf(m) != null ? '' : 'none';
     $('msheet').classList.add('open');
   }
   const closeMs = () => $('msheet').classList.remove('open');
   $('msheet').addEventListener('click', e => { if (e.target.id === 'msheet') closeMs(); });
   $('msCancel').onclick = closeMs;
   $('msLoop').onclick = () => { closeMs(); S.loop = true; selectMark(msIdx, true); };
+  $('msEnd').onclick = () => { closeMs(); setEndHere(msIdx); };
+  $('msEndClr').onclick = () => { setEnd(msIdx, null); renderMarks(); saveState(); closeMs(); };
   $('msHere').onclick = () => { const mk = S.marks[msIdx - 1]; keepSel(() => mk.t = Math.round(v.currentTime * 10) / 10); renderMarks(); saveState(); closeMs(); };
   $('msName').onclick = () => {
     const mk = S.marks[msIdx - 1], nm = prompt('マーカーの名前（例：サビ、フィル、Aメロ）', mk.name || '');
@@ -720,6 +769,7 @@
   function drawTimelineStatic(){
     const d = v.duration || 0, lay = $('mkLayer'); lay.innerHTML = '';
     if (d) S.marks.forEach((m, i) => { const el = document.createElement('div'); el.className = 'mk'; el.style.left = (m.t / d * 100) + '%'; el.innerHTML = `<i>${i + 1}</i><b></b>`; lay.appendChild(el); });
+    if (d) allMarks().forEach((m, i) => { const e = endOf(m); if (e == null) return; const el = document.createElement('div'); el.className = 'mk end'; el.style.left = (e / d * 100) + '%'; el.innerHTML = `<i>${i === 0 ? '頭' : i}</i><b></b>`; lay.appendChild(el); });
     const ab = $('abBar');
     if (d && S.a != null && S.b != null) { ab.style.left = (S.a / d * 100) + '%'; ab.style.width = ((S.b - S.a) / d * 100) + '%'; ab.className = 'ab on' + (S.loop ? '' : ' off'); }
     else if (d && S.a != null) { ab.style.left = (S.a / d * 100) + '%'; ab.style.width = '0'; ab.className = 'ab on off'; }
@@ -801,6 +851,13 @@
       x.fillStyle = 'rgba(255,216,74,.85)'; x.fillRect(mx - dpr * 0.75, 0, 1.5 * dpr, H);
       x.fillRect(mx - 9 * dpr, 2 * dpr, 18 * dpr, 13 * dpr);
       x.fillStyle = '#000'; x.fillText(String(i + 1), mx, 8.5 * dpr);
+    });
+    allMarks().forEach((m, i) => {
+      const e = endOf(m); if (e == null) return;
+      const ex = xAt(e); if (ex < -20 * dpr || ex > W + 20 * dpr) return;
+      x.fillStyle = 'rgba(93,255,155,.85)'; x.fillRect(ex - dpr * 0.75, 0, 1.5 * dpr, H);
+      x.fillRect(ex - 11 * dpr, H - 17 * dpr, 22 * dpr, 13 * dpr);
+      x.fillStyle = '#000'; x.fillText((i === 0 ? '頭' : i) + '終', ex, H - 10.5 * dpr);
     });
     // 秒の目盛り
     x.fillStyle = 'rgba(255,255,255,.35)'; x.font = `${10 * dpr}px -apple-system, sans-serif`; x.textBaseline = 'alphabetic';
