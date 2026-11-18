@@ -333,14 +333,14 @@
           <div class="bpm"><button class="k" id="bpmM">−</button><b id="bpmV">120</b><button class="k" id="bpmP">＋</button><button class="k" id="tapBtn" style="width:64px">タップ</button></div></div>
         <div class="opt"><span>助走（少し前から）</span>
           <select id="optPre"><option value="0">なし</option><option value="0.5">0.5秒</option><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
-        <div class="opt"><span>スピードトレーナー</span><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
+        <div class="opt" id="trnRow"><span>スピードトレーナー</span><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
         <div class="trn" id="trn">
           <label>開始<select id="tStart"></select></label>
           <label>上げ幅<select id="tStep"><option value="1">+1%</option><option value="2">+2%</option><option value="5" selected>+5%</option><option value="10">+10%</option></select></label>
           <label>何回ごと<select id="tEvery"><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option><option value="4">4回</option><option value="5">5回</option></select></label>
           <label>最大<select id="tMax"></select></label>
         </div>
-        <div class="hint">カウントイン：ループの頭と▶のたびにクリックが鳴る（今の速度に合わせたテンポ）。スピードトレーナー：ループするたびに少しずつ速くなる</div>
+        <div class="hint">カウントイン：ループの頭と▶のたびにクリックが鳴る（今の速度に合わせたテンポ）。<span id="trnHint">スピードトレーナー：ループするたびに少しずつ速くなる</span></div>
       </div>
     </div>
   </div>
@@ -361,7 +361,8 @@
   <h3>設定</h3>
   <div class="set"><span>小さいスキップ</span><select id="optS"><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
   <div class="set"><span>大きいスキップ</span><select id="optL"><option value="5">5秒</option><option value="10">10秒</option><option value="15">15秒</option><option value="30">30秒</option></select></div>
-  <div class="set"><span>映像を長押ししてる間の速度</span><select id="optHold"><option value="0.5">0.5倍</option><option value="0.75">0.75倍</option><option value="1.25">1.25倍</option><option value="1.5">1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></div>
+  <div class="set"><span>映像を長押ししてる間の速度</span><select id="optHold"><option value="0.5">0.5倍</option><option value="0.6">0.6倍</option><option value="0.7">0.7倍</option><option value="0.8">0.8倍</option><option value="0.9">0.9倍</option><option value="1.1">1.1倍</option><option value="1.2">1.2倍</option><option value="1.3">1.3倍</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></div>
+  <div class="set"><span>スピードトレーナーを使う</span><select id="optTrn"><option value="0">オフ</option><option value="1">オン</option></select></div>
   <div class="set"><span>速度を変えても音程を保つ</span><select id="optPitch"><option value="1">保つ</option><option value="0">保たない</option></select></div>
   <div class="set"><span>練習中は画面を消さへん</span><select id="optWake"><option value="1">オン</option><option value="0">オフ</option></select></div>
   <div class="set" style="flex-direction:column; align-items:stretch; gap:8px">
@@ -399,7 +400,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.17-11';
+  const APP_VERSION = '2026.11.18-1';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -419,15 +420,18 @@
     del(k){ try { localStorage.removeItem('gdp_' + k); } catch(e){} }
   };
   const opt = { s:store.get('s', 2), l:store.get('l', 5), pitch:store.get('pitch', 1), wake:store.get('wake', 1), keep:store.get('keep', 30),
-    count:store.get('count', 0), pre:store.get('pre', 0), hold:store.get('hold', 2) };
-  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optCount','count'],['optPre','pre'],['optHold','hold']];
-  for (const [id, k] of optSel) { $(id).value = opt[k]; $(id).addEventListener('change', e => { opt[k] = Number(e.target.value); store.set(k, opt[k]); applyOpts(); }); }
+    count:store.get('count', 0), pre:store.get('pre', 0), hold:store.get('hold', 2), trn:store.get('trnUse', 0) };
+  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optCount','count'],['optPre','pre'],['optHold','hold'],['optTrn','trn']];
+  { const HV = [0.5,0.6,0.7,0.8,0.9,1.1,1.2,1.3,1.5,2]; if (!HV.includes(opt.hold)) { opt.hold = HV.reduce((a, b) => Math.abs(b - opt.hold) < Math.abs(a - opt.hold) ? b : a); store.set('hold', opt.hold); } }
+  for (const [id, k] of optSel) { $(id).value = opt[k]; $(id).addEventListener('change', e => { opt[k] = Number(e.target.value); store.set(k === 'trn' ? 'trnUse' : k, opt[k]); applyOpts(); }); }
   function applyOpts(){
     $('bSmall').textContent = '−' + opt.s; $('fSmall').textContent = '+' + opt.s;
     $('bBig').textContent = '−' + opt.l; $('fBig').textContent = '+' + opt.l;
     try { v.preservesPitch = !!opt.pitch; v.webkitPreservesPitch = !!opt.pitch; } catch(e){}
     $('pitchInfo').textContent = opt.pitch ? '音程そのまま' : '音程も変わる';
     if (!opt.wake) releaseWake(); else if (!v.paused) requestWake();
+    $('trnRow').style.display = opt.trn ? '' : 'none'; $('trnHint').style.display = opt.trn ? '' : 'none';
+    if (!opt.trn && typeof trainerOff === 'function' && trn.on) trainerOff();
   }
   $('setBtn').onclick = () => $('sheet').classList.add('open');
   $('closeSheet').onclick = () => $('sheet').classList.remove('open');
@@ -943,7 +947,7 @@
 
   // ================= 波形 =================
   let curBlob = null, peaks = null, wDrag = false, wDragT = null;
-  const PPS = 100, wc = $('wave');
+  const PPS = 200, PEAK_V = 2, wc = $('wave'); // 1秒あたり200点（5ミリ秒ごと）
   let wzoom = store.get('wzoom', 80); // 1秒あたりのピクセル
   function resizeWave(){ const dpr = window.devicePixelRatio || 1; wc.width = Math.max(1, wc.clientWidth * dpr); wc.height = Math.max(1, wc.clientHeight * dpr); kick(); }
   window.addEventListener('resize', () => setTimeout(resizeWave, 80));
@@ -959,7 +963,7 @@
     const job = ++waveJob;
     peaks = null; peaksF = null; pmax = 0;
     const saved = await get('peaks', id);
-    if (saved && saved.data && id === curId) { peaks = saved.data; $('wmsg').textContent = ''; kick(); return; }
+    if (saved && saved.data && saved.v === PEAK_V && id === curId) { peaks = saved.data; $('wmsg').textContent = ''; kick(); return; }
     const alive = () => job === waveJob && id === curId;
     try {
       const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
@@ -980,7 +984,7 @@
     const n = peaksF.length, data = new Uint8Array(n), mx = pmax || 1;
     for (let i = 0; i < n; i++) data[i] = Math.round(Math.sqrt(Math.min(1, peaksF[i] / mx)) * 255);
     peaks = data; peaksF = null; $('wmsg').textContent = ''; kick();
-    put('peaks', { id, data }).catch(()=>{});
+    put('peaks', { id, data, v:PEAK_V }).catch(()=>{});
   }
   const OAC = () => window.OfflineAudioContext || window.webkitOfflineAudioContext;
   const decode = (ctx, buf) => new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
@@ -1016,8 +1020,64 @@
     const L = len + 7;
     return [0xFF, 0xF1, ((prof - 1) << 6) | (fi << 2) | (ch >> 2), ((ch & 3) << 6) | (L >> 11), (L >> 3) & 0xFF, ((L & 7) << 5) | 0x1F, 0xFC];
   }
+  // MP4の一番外側の箱（ftyp/moov/mdat…）の位置を調べる
+  async function mp4Boxes(blob){
+    const out = {}; let p = 0, guard = 0;
+    while (p + 8 <= blob.size && guard++ < 10000) {
+      const h = new DataView(await blob.slice(p, Math.min(blob.size, p + 16)).arrayBuffer());
+      let sz = h.getUint32(0); const ty = String.fromCharCode(h.getUint8(4), h.getUint8(5), h.getUint8(6), h.getUint8(7));
+      if (sz === 1 && h.byteLength >= 16) sz = h.getUint32(8) * 4294967296 + h.getUint32(12); else if (sz === 0) sz = blob.size - p;
+      if (!out[ty]) out[ty] = [p, sz];
+      if (sz < 8) break; p += sz;
+    }
+    return out;
+  }
+  // 目次（moov）だけ読んで音のサンプルの場所を全部知る → 音の部分だけ順番に読んでデコード
+  // （moovがファイルの最後にあるiPhoneの動画でも、最後まで波形が出る）
   async function mp4Peaks(blob, alive){
     await loadMp4box();
+    const bx = await mp4Boxes(blob);
+    if (!bx.moov || bx.moof) return mp4PeaksStream(blob, alive);
+    const parts = [];
+    for (const k of ['ftyp', 'moov']) if (bx[k]) parts.push(new Uint8Array(await blob.slice(bx[k][0], bx[k][0] + bx[k][1]).arrayBuffer()));
+    const cat = new Uint8Array(parts.reduce((a, b) => a + b.length, 0)); let o = 0; for (const q of parts) { cat.set(q, o); o += q.length; }
+    const file = MP4Box.createFile(); let info = null; file.onReady = i => { info = i; }; file.onError = () => {};
+    const ab = cat.buffer; ab.fileStart = 0; file.appendBuffer(ab); if (!info) file.flush();
+    const track = info && info.audioTracks && info.audioTracks[0];
+    if (!track) throw new Error('no audio');
+    const trak = file.getTrackById(track.id), smp = trak && trak.samples;
+    if (!smp || !smp.length) return mp4PeaksStream(blob, alive);
+    const ot = parseInt(String(track.codec).split('.').pop(), 10), prof = ot >= 1 && ot <= 4 ? ot : 2;
+    let fi = FREQS.indexOf(track.audio.sample_rate); if (fi < 0) fi = 4;
+    const chn = Math.min(7, track.audio.channel_count || 2);
+    const ctx = new (OAC())(1, 1, 8000);
+    let frames = [], frameBytes = 0, chunkStart = null, pending = Promise.resolve();
+    const flushChunk = () => {
+      if (!frames.length) return;
+      const out = new Uint8Array(frameBytes); let q = 0;
+      for (const f of frames) { out.set(f, q); q += f.length; }
+      const st = chunkStart; frames = []; frameBytes = 0; chunkStart = null;
+      pending = pending.then(async () => { if (!alive()) return; try { addBuffer(await decode(ctx, out.buffer), st); kick(); } catch(e){} });
+    };
+    const push = (sm, data) => {
+      if (chunkStart === null) chunkStart = sm.cts / sm.timescale;
+      const f = new Uint8Array(data.length + 7); f.set(adts(data.length, prof, fi, chn), 0); f.set(data, 7);
+      frames.push(f); frameBytes += f.length;
+      if (frames.length >= 1400) flushChunk();
+    };
+    const CH = 4 * 1024 * 1024, n = smp.length; let i = 0;
+    while (i < n && alive()) {
+      const ws = smp[i].offset, we = Math.min(blob.size, ws + CH);
+      const buf = new Uint8Array(await blob.slice(ws, we).arrayBuffer());
+      const i0 = i;
+      while (i < n && smp[i].offset >= ws && smp[i].offset + smp[i].size <= we) { const sm = smp[i]; push(sm, buf.subarray(sm.offset - ws, sm.offset - ws + sm.size)); i++; }
+      if (i === i0) { const sm = smp[i]; push(sm, new Uint8Array(await blob.slice(sm.offset, sm.offset + sm.size).arrayBuffer())); i++; }
+      progress(i / n);
+      await pending;
+    }
+    flushChunk(); await pending;
+  }
+  async function mp4PeaksStream(blob, alive){
     const ctx = new (OAC())(1, 1, 8000);
     const file = MP4Box.createFile();
     let track = null, prof = 2, fi = 4, chn = 2, frames = [], frameBytes = 0, chunkStart = null, pending = Promise.resolve(), done = false, fail = null;
@@ -1115,6 +1175,17 @@
     let m = 0; for (let i = i0; i < i1; i++) if (src[i] > m) m = src[i];
     return peaksF ? (pmax ? Math.sqrt(Math.min(1, m / pmax)) : 0) : m / 255;
   }
+  function peakLerp(f){
+    const src = peaksF || peaks; if (!src) return 0;
+    const i = Math.floor(f), r = f - i, g = j => { j = clamp(j, 0, src.length - 1); const m = src[j]; return peaksF ? (pmax ? Math.sqrt(Math.min(1, m / pmax)) : 0) : m / 255; };
+    return g(i) * (1 - r) + g(i + 1) * r;
+  }
+  function wavePath(top, xs, mid){
+    const p = new Path2D(); p.moveTo(xs, mid);
+    for (let k = 0; k < top.length; k++) p.lineTo(xs + k, mid - top[k]);
+    for (let k = top.length - 1; k >= 0; k--) p.lineTo(xs + k, mid + top[k]);
+    p.closePath(); return p;
+  }
   function drawWave(){
     const dpr = window.devicePixelRatio || 1, W = wc.width, H = wc.height, x = wc.getContext('2d');
     if (!W || !H) return;
@@ -1128,14 +1199,22 @@
       x.fillStyle = '#38c6ff'; x.fillRect(xa - dpr, 0, 2 * dpr, H);
       if (S.b != null) { x.fillStyle = '#5dff9b'; x.fillRect(xb - dpr, 0, 2 * dpr, H); }
     }
-    // 波形
-    const bar = Math.max(2, Math.round(2 * dpr)), gap = Math.max(1, Math.round(dpr)), stp = bar + gap, mid = H / 2;
-    for (let px = (W / 2) % stp - stp; px < W; px += stp) {
-      const t0 = tAt(px), t1 = t0 + stp / pps;
-      if (t1 < 0 || t0 > dur) continue;
-      const a = (peaks || peaksF) ? peakAt(t0 * PPS, t1 * PPS) : 0.04, h = Math.max(dpr, a * H * 0.42);
-      x.fillStyle = t0 < played ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.32)';
-      x.fillRect(px, mid - h, bar, h * 2);
+    // 波形（1ピクセルごとの細かいトゲトゲ）
+    const mid = H / 2, hasP = !!(peaks || peaksF);
+    const xs = Math.max(0, Math.floor(xAt(0))), xe = Math.min(W, Math.ceil(xAt(dur)));
+    if (xe > xs) {
+      const top = new Float32Array(xe - xs + 1), amp = H * 0.47;
+      for (let px = xs; px <= xe; px++) {
+        const f0 = tAt(px) * PPS, f1 = tAt(px + 1) * PPS;
+        let a = hasP ? (f1 - f0 < 1 ? peakLerp(f0) : peakAt(f0, f1)) : 0.04;
+        a = Math.pow(a, 1.5); // 小さい音はより小さく → トゲが立つ
+        top[px - xs] = Math.max(dpr * 0.5, a * amp);
+      }
+      const xp = clamp(xAt(played), 0, W);
+      const wp = wavePath(top, xs, mid);
+      x.save(); x.beginPath(); x.rect(0, 0, xp, H); x.clip(); x.fillStyle = 'rgba(255,255,255,.9)'; x.fill(wp); x.restore();
+      x.save(); x.beginPath(); x.rect(xp, 0, W - xp, H); x.clip(); x.fillStyle = 'rgba(255,255,255,.38)'; x.fill(wp); x.restore();
+      x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(xs, mid - dpr * 0.25, xe - xs, dpr * 0.5);
     }
     // マーカー
     x.font = `800 ${10 * dpr}px -apple-system, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
@@ -1158,22 +1237,25 @@
     for (let s2 = Math.ceil(tAt(0) / tick) * tick; s2 < tAt(W); s2 += tick) { if (s2 < 0 || s2 > dur) continue; const px = xAt(s2); x.fillRect(px, H - 10 * dpr, dpr, 4 * dpr); x.fillText(fmt(s2), px, H - 1.5 * dpr); }
   }
   // 波形の操作：ドラッグで移動（離したら飛ぶ）、2本指で拡大縮小、タップで再生・停止
+  let wTapBlock = 0;
   const wb = $('wbox'); let wt = null, wpz = null, wGlide = 0, wGliding = false;
   const wx = t => { const r = wb.getBoundingClientRect(); return t.clientX - r.left; };
   wb.addEventListener('touchstart', e => {
     e.preventDefault();
-    if (e.touches.length >= 2) { wpz = { d0:Math.abs(wx(e.touches[0]) - wx(e.touches[1])) || 1, z0:wzoom }; wt = null; return; }
-    cancelAnimationFrame(wGlide); if (wGliding) { wGliding = false; if (wDragT != null) seek(wDragT); }
+    if (e.touches.length >= 2) { wpz = { d0:Math.abs(wx(e.touches[0]) - wx(e.touches[1])) || 1, z0:wzoom }; wt = null; wTapBlock = Date.now(); return; }
+    cancelAnimationFrame(wGlide); let caught = false;
+    if (wGliding) { wGliding = false; caught = true; if (wDragT != null) seek(wDragT); }
     const x0 = wx(e.touches[0]);
-    wt = { x:x0, base:v.currentTime, t:Date.now(), moved:false, lx:x0, lt:performance.now(), vx:0 };
+    wt = { x:x0, base:wDragT != null ? wDragT : v.currentTime, t:Date.now(), moved:false, lx:x0, lt:performance.now(), vx:0, maxd:0, caught, multi:false };
   }, { passive:false });
   wb.addEventListener('touchmove', e => {
     e.preventDefault();
     if (wpz && e.touches.length >= 2) { wzoom = clamp(wpz.z0 * (Math.abs(wx(e.touches[0]) - wx(e.touches[1])) || 1) / wpz.d0, 4, 600); store.set('wzoom', wzoom); kick(); return; }
     if (!wt) return;
     const cx = wx(e.touches[0]), dx = cx - wt.x, now = performance.now();
+    wt.maxd = Math.max(wt.maxd, Math.abs(dx));
     wt.vx = wt.vx * 0.25 + ((cx - wt.lx) / Math.max(8, now - wt.lt)) * 0.75; wt.lx = cx; wt.lt = now;
-    if (!wt.moved && Math.abs(dx) > 6) { wt.moved = true; wDrag = true; kick(); }
+    if (!wt.moved && Math.abs(dx) > 4) { wt.moved = true; wDrag = true; kick(); }
     if (wt.moved) {
       wDragT = clamp(wt.base - dx / wzoom, 0, v.duration || 0);
       const d = wDragT - wt.base;
@@ -1184,6 +1266,11 @@
     e.preventDefault();
     if (e.touches.length > 0) return;
     if (wpz) { wpz = null; return; }
+    // 速いスワイプで touchmove が来る前に指が離れた時も、動いた分はシークにする
+    if (wt && !wt.moved && e.changedTouches && e.changedTouches[0]) {
+      const dx = wx(e.changedTouches[0]) - wt.x; wt.maxd = Math.max(wt.maxd, Math.abs(dx));
+      if (Math.abs(dx) > 4) { seek(clamp(wt.base - dx / wzoom, 0, v.duration || 0)); wt = null; endWDrag(); return; }
+    }
     if (wt && wt.moved && wDragT != null) {
       // 指を離しても勢いで滑る。止まったところへ飛ぶ
       let vx = performance.now() - wt.lt > 80 ? 0 : wt.vx * 1.6;
@@ -1202,7 +1289,8 @@
       wGlide = requestAnimationFrame(glide);
       return;
     }
-    if (wt && Date.now() - wt.t < 350) togglePlay();
+    // タップ判定：ほぼ動いてない・短い・滑走を止めたタッチじゃない・2本指の直後じゃない
+    if (wt && !wt.caught && wt.maxd <= 4 && Date.now() - wt.t < 300 && Date.now() - wTapBlock > 400) togglePlay();
     wt = null; endWDrag();
   };
   function endWDrag(){ wDrag = false; wDragT = null; $('wlabel').style.display = 'none'; kick(); }
