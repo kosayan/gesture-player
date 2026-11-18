@@ -145,9 +145,22 @@
   .sw { width:52px; height:30px; border-radius:15px; background:#333; border:0; position:relative; flex:none; }
   .sw::after { content:''; position:absolute; left:3px; top:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .15s; }
   .sw.on { background:var(--acc); } .sw.on::after { left:25px; }
-  .trn { display:none; gap:6px; flex-wrap:wrap; padding:4px 0 2px; }
+  .trn { display:none; gap:8px 6px; flex-wrap:wrap; padding:8px 0 2px; font-size:13px; font-weight:700; line-height:2.4; }
   .trn.on { display:flex; }
-  .trn label { flex:1 1 45%; font-size:12px; color:var(--mute); font-weight:700; display:flex; flex-direction:column; gap:4px; }
+  .trn select { background:#222226; border:0; border-radius:8px; padding:6px 8px; font-size:14px; font-weight:800; color:var(--acc); }
+  .pc { padding:12px 2px; border-top:1px solid var(--line); }
+  .pt { font-size:15px; font-weight:900; } .pt small { font-size:11px; color:var(--mute); font-weight:700; }
+  .pd { font-size:12px; color:var(--mute); line-height:1.55; margin:4px 0 8px; }
+  .seg { display:flex; gap:4px; background:#1b1b1f; border-radius:12px; padding:3px; }
+  .seg button { flex:1; height:36px; border:0; border-radius:9px; background:transparent; font-size:13px; font-weight:800; color:#ccc; white-space:nowrap; padding:0 2px; }
+  .seg button.on { background:var(--acc); color:#000; }
+  #segPre button { font-size:11.5px; }
+  .bpm .bu { font-size:11px; color:var(--mute); font-weight:800; margin-left:-4px; }
+  #tapBtn { flex:1; width:auto; font-size:13px; }
+  .flow { background:#1d1d22; border-radius:12px; padding:10px 12px; font-size:13px; font-weight:800; line-height:1.6; }
+  .flow small { display:block; color:var(--mute); font-size:11px; font-weight:700; }
+  .flow .st { display:inline-block; background:#2c2c32; border-radius:7px; padding:1px 7px; margin:2px 0; }
+  .flow .ar { color:var(--mute); margin:0 4px; }
 
   /* アクションシート */
   #msheet, #sheet { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.5); display:none; align-items:flex-end; }
@@ -181,7 +194,13 @@
   .sh .mv { display:flex; gap:4px; margin-left:8px; }
   .sh .mv button { width:34px; height:28px; border:0; border-radius:8px; background:#222226; color:rgba(255,255,255,.6); font-size:11px; padding:0; }
   .sh .val { margin-left:auto; }
-  .wrapb { margin-left:8px; height:28px; padding:0 10px; border:0; border-radius:8px; background:#2a2614; color:var(--mk); font-size:12px; font-weight:800; white-space:nowrap; }
+  .editb { margin-left:8px; height:28px; padding:0 10px; border:0; border-radius:8px; background:#26262a; color:#bbb; font-size:12px; font-weight:800; white-space:nowrap; }
+  .editb.on { background:var(--mk); color:#000; }
+  #editBar { display:none; margin-top:8px; padding:6px 10px; border-radius:10px; background:#2a2410; color:var(--mk); font-size:12px; font-weight:800; }
+  .sec.editing { border-color:var(--mk); box-shadow:0 0 0 1px var(--mk) inset; }
+  .sec.editing #editBar { display:block; }
+  .sec:not(.editing) [data-edit] { opacity:.32; }
+  .wrapb { margin-left:6px; height:28px; padding:0 10px; border:0; border-radius:8px; background:#2a2614; color:var(--mk); font-size:12px; font-weight:800; white-space:nowrap; }
   .wrapb.on { background:var(--mk); color:#000; }
   /* 折り返し（パッド）表示 */
   #marks.wrap { display:grid; grid-template-columns:repeat(auto-fill, minmax(60px, 1fr)); gap:6px; overflow:visible; }
@@ -284,13 +303,14 @@
     <div id="secs">
       <!-- マーカー＋ループ -->
       <div class="sec" data-k="ml">
-        <div class="sh"><span>マーカー＆ループ</span><span class="val" id="loopCnt"></span><button id="mWrap" class="wrapb">全部表示 ▾</button><span class="mv"><button data-mv="-1" aria-label="上へ">▲</button><button data-mv="1" aria-label="下へ">▼</button></span></div>
+        <div class="sh"><span>マーカー＆ループ</span><span class="val" id="loopCnt"></span><button id="editSw" class="editb">✎ 編集 OFF</button><button id="mWrap" class="wrapb">全部表示 ▾</button><span class="mv"><button data-mv="-1" aria-label="上へ">▲</button><button data-mv="1" aria-label="下へ">▼</button></span></div>
         <div class="row">
           <button class="k" id="mPrev">◀ 前</button>
-          <button class="k on" id="mAdd" style="flex:1.4">＋ マーカー</button>
-          <button class="k" id="mDel" aria-label="選択中のマーカーを削除">🗑</button>
+          <button class="k on" id="mAdd" data-edit style="flex:1.4">＋ マーカー</button>
+          <button class="k" id="mDel" data-edit aria-label="選択中のマーカーを削除">🗑</button>
           <button class="k" id="mNext">次 ▶</button>
         </div>
+        <div id="editBar">✎ 編集中：選んだマーカーは曲が進んでも変わらへん</div>
         <div id="marks"></div>
         <div class="row">
           <button class="k big loop" id="loopBtn" style="flex:1.6">ループ<small>OFF</small></button>
@@ -298,19 +318,19 @@
           <button class="k big" id="spanP">範囲 ＋</button>
         </div>
         <div class="row">
-          <button class="k sm tgt st" id="tgtS">始まりを動かす</button>
-          <button class="k sm tgt en" id="tgtE">終わりを動かす</button>
+          <button class="k sm tgt st" id="tgtS" data-edit>始まりを動かす</button>
+          <button class="k sm tgt en" id="tgtE" data-edit>終わりを動かす</button>
         </div>
         <div class="row">
-          <button class="k sm" id="selM">◀ 0.1秒</button>
+          <button class="k sm" id="selM" data-edit>◀ 0.1秒</button>
           <div class="k sm" id="selInfo" style="flex:1.6; background:#202024"></div>
-          <button class="k sm" id="selP">0.1秒 ▶</button>
+          <button class="k sm" id="selP" data-edit>0.1秒 ▶</button>
         </div>
         <div class="row">
-          <button class="k sm" id="endSet" style="color:var(--b)">＋ 終わりをここに</button>
-          <button class="k sm" id="endClr">終わりを消す</button>
+          <button class="k sm" id="endSet" data-edit style="color:var(--b)">＋ 終わりをここに</button>
+          <button class="k sm" id="endClr" data-edit>終わりを消す</button>
         </div>
-        <div class="hint"><b style="color:var(--mk)">始まり＝オレンジ</b>、<b style="color:var(--b)">終わり＝緑</b>。終わりは置いた位置の直前のマーカーに付く。ループONなら、そのマーカーの終わりまで（なければ次のマーカーまで）を繰り返す。範囲＋で複数つなぐときは始まりだけを区切りに使う。長押しで名前・移動・削除</div>
+        <div class="hint"><b>✎ 編集OFF</b>：曲に合わせて今いるマーカーが自動で選ばれる。マーカーの追加・移動・削除はできへん（誤操作防止）。<b>✎ 編集ON</b>：選んだマーカーがずっと選ばれたままになって、追加・移動・終わりの設定ができる。<br><b style="color:var(--mk)">始まり＝オレンジ</b>、<b style="color:var(--b)">終わり＝緑</b>。終わりは置いた位置の直前のマーカーに付く。ループONなら、そのマーカーの終わりまで（なければ次のマーカーまで）を繰り返す。長押しでメニュー</div>
       </div>
 
       <!-- 速度 -->
@@ -327,20 +347,31 @@
       <!-- 練習モード -->
       <div class="sec" data-k="prac">
         <div class="sh"><span>練習モード</span><span class="mv"><button data-mv="-1">▲</button><button data-mv="1">▼</button></span></div>
-        <div class="opt"><span>カウントイン</span>
-          <select id="optCount"><option value="0">なし</option><option value="2">2拍</option><option value="4">4拍</option><option value="8">8拍</option></select></div>
-        <div class="opt"><span>テンポ（BPM）</span>
-          <div class="bpm"><button class="k" id="bpmM">−</button><b id="bpmV">120</b><button class="k" id="bpmP">＋</button><button class="k" id="tapBtn" style="width:64px">タップ</button></div></div>
-        <div class="opt"><span>助走（少し前から）</span>
-          <select id="optPre"><option value="0">なし</option><option value="0.5">0.5秒</option><option value="1">1秒</option><option value="2">2秒</option><option value="3">3秒</option><option value="5">5秒</option></select></div>
-        <div class="opt" id="trnRow"><span>スピードトレーナー</span><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
-        <div class="trn" id="trn">
-          <label>開始<select id="tStart"></select></label>
-          <label>上げ幅<select id="tStep"><option value="1">+1%</option><option value="2">+2%</option><option value="5" selected>+5%</option><option value="10">+10%</option></select></label>
-          <label>何回ごと<select id="tEvery"><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option><option value="4">4回</option><option value="5">5回</option></select></label>
-          <label>最大<select id="tMax"></select></label>
+        <div class="flow" id="flow"></div>
+        <div class="pc">
+          <div class="pt">🥁 始まる前にクリック <small>（カウントイン）</small></div>
+          <div class="pd">▶を押した時・ループの頭・マーカーに飛んだ時に「カッ、カッ、カッ、カッ」と鳴らしてから再生する</div>
+          <div class="seg" id="segCount"><button data-v="0">なし</button><button data-v="2">2回</button><button data-v="4">4回</button><button data-v="8">8回</button></div>
+          <div id="bpmBox">
+            <div class="pd" style="margin-top:10px">クリックの速さ：曲のテンポに合わせる。「曲に合わせてタップ」を曲のリズムで4回くらい叩くと自動で合う（再生速度を変えたらクリックも一緒に変わる）</div>
+            <div class="bpm"><button class="k" id="bpmM">−</button><b id="bpmV">120</b><span class="bu">BPM</span><button class="k" id="bpmP">＋</button><button class="k" id="tapBtn">曲に合わせてタップ</button></div>
+          </div>
         </div>
-        <div class="hint">カウントイン：ループの頭と▶のたびにクリックが鳴る（今の速度に合わせたテンポ）。<span id="trnHint">スピードトレーナー：ループするたびに少しずつ速くなる</span></div>
+        <div class="pc">
+          <div class="pt">⏪ ちょっと前から再生 <small>（助走）</small></div>
+          <div class="pd">マーカーに飛んだ時やループの頭で、少し前から再生する。入りの直前を聴いて準備できる</div>
+          <div class="seg" id="segPre"><button data-v="0">ぴったり</button><button data-v="0.5">0.5秒前</button><button data-v="1">1秒前</button><button data-v="2">2秒前</button><button data-v="3">3秒前</button><button data-v="5">5秒前</button></div>
+        </div>
+        <div class="pc" id="trnRow">
+          <div class="pt" style="display:flex; align-items:center; justify-content:space-between">📈 だんだん速く <small style="margin-right:auto; margin-left:4px">（スピードトレーナー）</small><button class="sw" id="trnSw" aria-label="スピードトレーナー"></button></div>
+          <div class="pd">ループするたびに少しずつ速くしていく。ループONと一緒に使う</div>
+          <div class="trn" id="trn">
+            <span><select id="tStart"></select> から始めて、</span>
+            <span><select id="tEvery"><option value="1">1回</option><option value="2" selected>2回</option><option value="3">3回</option><option value="4">4回</option><option value="5">5回</option></select> ループするごとに</span>
+            <span><select id="tStep"><option value="1">+1%</option><option value="2">+2%</option><option value="5" selected>+5%</option><option value="10">+10%</option></select> 上げて、</span>
+            <span><select id="tMax"></select> で止める</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -349,11 +380,12 @@
 <div id="msheet"><div class="panel">
   <h3 id="msTitle">マーカー</h3>
   <button class="k" id="msLoop">ここから次のマーカーまでループ</button>
-  <button class="k" id="msEnd">終わりを今の位置に付ける</button>
-  <button class="k" id="msEndClr">終わりを消す</button>
-  <button class="k" id="msHere">今の位置に動かす</button>
-  <button class="k" id="msName">名前を変える</button>
-  <button class="k danger" id="msDel">削除</button>
+  <button class="k" id="msEnd" data-edit>終わりを今の位置に付ける</button>
+  <button class="k" id="msEndClr" data-edit>終わりを消す</button>
+  <button class="k" id="msHere" data-edit>今の位置に動かす</button>
+  <button class="k" id="msName" data-edit>名前を変える</button>
+  <button class="k danger" id="msDel" data-edit>削除</button>
+  <button class="k" id="msEdit" style="color:var(--mk)">✎ 編集モードにして直す</button>
   <button class="k" id="msCancel" style="background:#2c2c2e">キャンセル</button>
 </div></div>
 
@@ -400,7 +432,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.18-1';
+  const APP_VERSION = '2026.11.18-2';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -421,7 +453,7 @@
   };
   const opt = { s:store.get('s', 2), l:store.get('l', 5), pitch:store.get('pitch', 1), wake:store.get('wake', 1), keep:store.get('keep', 30),
     count:store.get('count', 0), pre:store.get('pre', 0), hold:store.get('hold', 2), trn:store.get('trnUse', 0) };
-  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optCount','count'],['optPre','pre'],['optHold','hold'],['optTrn','trn']];
+  const optSel = [['optS','s'],['optL','l'],['optPitch','pitch'],['optWake','wake'],['optKeep','keep'],['optHold','hold'],['optTrn','trn']];
   { const HV = [0.5,0.6,0.7,0.8,0.9,1.1,1.2,1.3,1.5,2]; if (!HV.includes(opt.hold)) { opt.hold = HV.reduce((a, b) => Math.abs(b - opt.hold) < Math.abs(a - opt.hold) ? b : a); store.set('hold', opt.hold); } }
   for (const [id, k] of optSel) { $(id).value = opt[k]; $(id).addEventListener('change', e => { opt[k] = Number(e.target.value); store.set(k === 'trn' ? 'trnUse' : k, opt[k]); applyOpts(); }); }
   function applyOpts(){
@@ -430,7 +462,7 @@
     try { v.preservesPitch = !!opt.pitch; v.webkitPreservesPitch = !!opt.pitch; } catch(e){}
     $('pitchInfo').textContent = opt.pitch ? '音程そのまま' : '音程も変わる';
     if (!opt.wake) releaseWake(); else if (!v.paused) requestWake();
-    $('trnRow').style.display = opt.trn ? '' : 'none'; $('trnHint').style.display = opt.trn ? '' : 'none';
+    $('trnRow').style.display = opt.trn ? '' : 'none';
     if (!opt.trn && typeof trainerOff === 'function' && trn.on) trainerOff();
   }
   $('setBtn').onclick = () => $('sheet').classList.add('open');
@@ -669,9 +701,9 @@
   const pctOpts = (from, to) => Array.from({ length:(to - from) / 5 + 1 }, (_, i) => `<option value="${from + i * 5}">${from + i * 5}%</option>`).join('');
   $('tStart').innerHTML = pctOpts(40, 100); $('tStart').value = 70;
   $('tMax').innerHTML = pctOpts(60, 150); $('tMax').value = 100;
-  function trainerOff(){ trn.on = false; $('trnSw').classList.remove('on'); $('trn').classList.remove('on'); }
+  function trainerOff(){ trn.on = false; $('trnSw').classList.remove('on'); $('trn').classList.remove('on'); if (typeof renderFlow === 'function') renderFlow(); }
   $('trnSw').onclick = () => {
-    trn.on = !trn.on; $('trnSw').classList.toggle('on', trn.on); $('trn').classList.toggle('on', trn.on);
+    trn.on = !trn.on; $('trnSw').classList.toggle('on', trn.on); $('trn').classList.toggle('on', trn.on); renderFlow();
     if (trn.on) { setRate(Number($('tStart').value) / 100); loops = 0; if (!S.loop) chip('ループと一緒に使ってな', '', 1500); }
     updateLoopUI();
   };
@@ -707,6 +739,22 @@
     else v.play().catch(()=>{});
   }
   // テンポ
+  // 練習モード：ボタン選択＋「どう動くか」の説明
+  function segInit(id, key){
+    const box = $(id);
+    const paint = () => box.querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === opt[key]));
+    box.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; opt[key] = Number(b.dataset.v); store.set(key, opt[key]); paint(); renderFlow(); });
+    paint();
+  }
+  function renderFlow(){
+    const st = [];
+    if (opt.count > 0) st.push(`クリック${opt.count}回`);
+    st.push(opt.pre > 0 ? `${opt.pre}秒前から再生` : 'マーカーの位置から再生');
+    if (trn && trn.on) st.push('ループごとに速く');
+    $('flow').innerHTML = '<small>今の設定だと、マーカーに飛んだ時・ループの頭はこう動く：</small>' + st.map(x => `<span class="st">${x}</span>`).join('<span class="ar">→</span>');
+    $('bpmBox').style.display = opt.count > 0 ? '' : 'none';
+  }
+  segInit('segCount', 'count'); segInit('segPre', 'pre'); renderFlow();
   const setBpm = b => { S.bpm = clamp(Math.round(b), 30, 300); $('bpmV').textContent = S.bpm; saveState(); };
   $('bpmM').onclick = () => setBpm(S.bpm - 1); $('bpmP').onclick = () => setBpm(S.bpm + 1);
   let taps = [];
@@ -755,6 +803,20 @@
     });
     drawTimelineStatic();
   }
+  // ===== マーカー編集モード（デフォルトOFF） =====
+  let editing = false;
+  function setEditing(on){
+    editing = on;
+    $('editSw').textContent = on ? '✎ 編集 ON' : '✎ 編集 OFF'; $('editSw').classList.toggle('on', on);
+    document.querySelector('.sec[data-k="ml"]').classList.toggle('editing', on);
+    if (!on) { followLock = null; markCur(); }
+  }
+  $('editSw').onclick = () => { setEditing(!editing); chip(editing ? '✎ 編集ON' : '編集OFF', editing ? '選んだマーカーは固定' : '曲に合わせて自動で選ぶ', 900); };
+  // 編集OFFの時は編集ボタンを効かなくする（見た目は残す）
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-edit]');
+    if (b && !editing) { e.stopPropagation(); e.preventDefault(); if (b.closest('#msheet')) return; chip('編集モードをONにしてな', 'マーカー欄の「✎ 編集」', 1300); }
+  }, true);
   let mWrap = store.get('mWrap', false);
   $('mWrap').onclick = () => { mWrap = !mWrap; store.set('mWrap', mWrap); renderMarks(); if (!mWrap) chipScroll(S.sel); };
   function chipScroll(i){ if (mWrap) return; const el = $('marks').children[i]; if (el) el.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' }); }
@@ -859,7 +921,7 @@
   function curMarkIdx(){ let idx = 0; allMarks().forEach((m, i) => { if (m.t <= v.currentTime + 0.15) idx = i; }); return idx; }
   let followLock = null; // マーカーに飛んだ直後（助走中など）は自動選択を止める
   function markCur(){
-    if (S.loop || wDrag || tlDrag != null) return;
+    if (editing || S.loop || wDrag || tlDrag != null) return;
     if (followLock != null) { if (v.currentTime >= followLock - 0.05 || v.currentTime < followLock - 8) followLock = null; else return; }
     const i = curMarkIdx();
     if (i !== S.sel) {
@@ -891,11 +953,14 @@
     $('msLoop').textContent = endOf(m) != null ? '始まり〜終わりをループ' : 'ここから次のマーカーまでループ';
     $('msEnd').textContent = endOf(m) != null ? '終わりを今の位置に動かす' : '終わりを今の位置に付ける';
     $('msEndClr').style.display = endOf(m) != null ? '' : 'none';
+    ['msEnd','msEndClr','msHere','msName','msDel'].forEach(id => { if (!editing) $(id).style.display = 'none'; });
+    $('msEdit').style.display = editing ? 'none' : '';
     $('msheet').classList.add('open');
   }
   const closeMs = () => $('msheet').classList.remove('open');
   $('msheet').addEventListener('click', e => { if (e.target.id === 'msheet') closeMs(); });
   $('msCancel').onclick = closeMs;
+  $('msEdit').onclick = () => { setEditing(true); openMs(msIdx); };
   $('msLoop').onclick = () => { closeMs(); S.loop = true; selectMark(msIdx, true); };
   $('msEnd').onclick = () => { closeMs(); setEndHere(); };
   $('msEndClr').onclick = () => { setEnd(msIdx, null); renderMarks(); saveState(); closeMs(); };
@@ -1441,5 +1506,6 @@
   renderRecent();
 })();
 </script>
+<script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { scope:'./' }).catch(()=>{}));</script>
 </body>
 </html>
