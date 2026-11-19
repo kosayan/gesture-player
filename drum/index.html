@@ -162,6 +162,28 @@
   .flow .st { display:inline-block; background:#2c2c32; border-radius:7px; padding:1px 7px; margin:2px 0; }
   .flow .ar { color:var(--mute); margin:0 4px; }
 
+  /* メトロノーム */
+  #metSheet { position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.5); display:none; align-items:flex-end; }
+  #metSheet.open { display:flex; }
+  #metSheet .panel { max-height:92%; }
+  .mh { display:flex; align-items:center; justify-content:space-between; }
+  .mh h3 { margin:2px 4px; } .mh .k { width:auto !important; flex:none; height:36px; padding:0 14px; margin:0 !important; }
+  .mgo { width:100%; height:56px; border:0; border-radius:16px; background:var(--acc); color:#000; font-size:19px; font-weight:900; margin-top:10px; }
+  .mgo.on { background:#ff5a5a; color:#fff; }
+  .mbpm { text-align:center; margin:10px 0 4px; }
+  .mbpm b { font-size:56px; font-weight:900; font-variant-numeric:tabular-nums; line-height:1; }
+  .mbpm span { font-size:14px; color:var(--mute); font-weight:800; margin-left:6px; }
+  .mbpm small { display:block; font-size:12px; color:var(--acc); font-weight:800; min-height:16px; margin-top:4px; }
+  #metSheet .row .k { margin-top:0; width:auto; flex:1; height:44px; }
+  #metSheet input[type=range] { width:100%; margin:12px 0 4px; accent-color:var(--acc); }
+  .mlab { font-size:13px; font-weight:800; color:#ddd; margin:14px 2px 6px; } .mlab small { color:var(--mute); font-weight:700; font-size:11px; }
+  .mval { flex:1.4 !important; background:#202024 !important; font-size:16px; font-weight:900; }
+  .macc { display:flex; gap:5px; flex-wrap:wrap; }
+  .macc button { flex:1 0 34px; height:48px; border:0; border-radius:10px; background:#26262a; color:#888; font-size:12px; font-weight:900; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+  .macc button i { font-style:normal; font-size:10px; opacity:.7; }
+  .macc button.a2 { background:var(--acc); color:#000; } .macc button.a1 { background:#3a3a42; color:#fff; } .macc button.a0 { background:#18181b; color:#555; text-decoration:line-through; }
+  #metBtn.on { color:#000; background:var(--acc); border-radius:10px; }
+
   /* アクションシート */
   #msheet, #sheet { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.5); display:none; align-items:flex-end; }
   #msheet.open, #sheet.open { display:flex; }
@@ -226,6 +248,7 @@
   header .ib { width:36px; }
   header { gap:2px; padding:0 4px; }
   @media (max-width: 440px) { header .ttl { display:none; } header .ur { margin-left:auto; } }
+  @media (max-width: 420px) { header .ib { width:30px; } header .ib svg { width:20px; height:20px; } .ur .ib { width:auto; padding:0 5px; font-size:12px; } header { padding:0 2px; gap:1px; } }
   .ur { display:flex; background:#26262b; border-radius:18px; height:36px; margin-right:2px; overflow:hidden; flex-shrink:0; }
   .ur .ib { width:auto; height:36px; padding:0 10px; color:#fff; font-size:13px; font-weight:800; gap:3px; }
   .ur .ib + .ib { border-left:1px solid #3a3a40; }
@@ -261,6 +284,7 @@
     <button class="ib" id="mirBtn" aria-label="左右反転"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M8 7L3 12l5 5V7z"/><path d="M16 7l5 5-5 5V7z"/></svg></button>
     <button class="ib" id="fsBtn" aria-label="全画面"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="ib" id="vsBtn" aria-label="映像の大きさ"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 12h8"/></svg></button>
+    <button class="ib" id="metBtn" aria-label="メトロノーム"><svg viewBox="0 0 24 24"><path d="M9 3h6l4 18H5L9 3z"/><path d="M12 15l5-9"/><path d="M7.5 17h9"/></svg></button>
     <div class="ttl" id="ttl">—</div>
     <div class="ur">
       <button class="ib dis" id="undoBtn" aria-label="戻す"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>戻す<b id="undoN"></b></button>
@@ -377,6 +401,29 @@
   </div>
 </div>
 
+<div id="metSheet"><div class="panel">
+  <div class="mh"><h3>メトロノーム</h3><button class="k" id="metClose">閉じる</button></div>
+  <button class="mgo" id="metGo">▶ スタート</button>
+  <div class="mbpm"><b id="metBpm">120</b><span>BPM</span><small id="metNow"></small></div>
+  <div class="row"><button class="k" data-db="-5">−5</button><button class="k" data-db="-1">−1</button><button class="k" id="metTap">タップ</button><button class="k" data-db="1">+1</button><button class="k" data-db="5">+5</button></div>
+  <input type="range" id="metSl" min="30" max="300" step="1">
+  <div class="mlab">1小節の拍数</div>
+  <div class="row"><button class="k" id="metBm">−</button><div class="k mval" id="metBeats">4拍</div><button class="k" id="metBp">＋</button></div>
+  <div class="mlab">アクセント <small>（タップで 強 → 普通 → 鳴らさない を切り替え）</small></div>
+  <div class="macc" id="metAcc"></div>
+  <div class="mlab">刻み <small>（1拍の中のクリック。裏は小さめの音）</small></div>
+  <div class="seg" id="metSub"><button data-v="1">4分</button><button data-v="2">8分</button><button data-v="3">3連</button><button data-v="4">16分</button></div>
+  <div class="mlab">音量</div>
+  <input type="range" id="metVol" min="0.1" max="2" step="0.05">
+  <div class="mlab" style="display:flex; align-items:center; justify-content:space-between">だんだん速く（加速）<button class="sw" id="metAccSw" aria-label="加速"></button></div>
+  <div class="trn" id="metAccBox">
+    <span><select id="metEvery"></select><select id="metUnit"><option value="bar">小節</option><option value="sec">秒</option></select> ごとに</span>
+    <span><select id="metInc"><option value="1">+1</option><option value="2">+2</option><option value="3">+3</option><option value="5">+5</option><option value="10">+10</option></select> BPM 上げて、</span>
+    <span><select id="metMax"></select> で止める</span>
+    <div class="pd" style="width:100%; margin:2px 0 0">止めると最初のテンポに戻る</div>
+  </div>
+</div></div>
+
 <div id="msheet"><div class="panel">
   <h3 id="msTitle">マーカー</h3>
   <button class="k" id="msLoop">ここから次のマーカーまでループ</button>
@@ -418,6 +465,7 @@
   <p class="sub">速度を落とす・A-Bで繰り返す・マーカーで一発ジャンプ。<br>波形を見ながら操作できる。カウントインとスピードトレーナー付き。動画も音声もOK</p>
   <button class="btn" id="openBtn">＋ 練習する動画・音声を選ぶ</button>
   <input type="file" id="file" accept="video/*,audio/*,.mp3,.m4a,.wav,.aac,.aif,.aiff,.flac,.caf,.ogg,.opus" multiple hidden>
+  <button class="btn ghost" id="metHome" style="margin-top:10px">♩ メトロノームだけ使う</button>
   <h2>最近の練習（タップですぐ再開）</h2>
   <div id="recent"></div>
   <div style="margin-top:22px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
@@ -432,7 +480,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.18-2';
+  const APP_VERSION = '2026.11.19-1';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -609,7 +657,7 @@
     renderMarks(); updateLoopUI(); resizeWave(); kick();
     loadPeaks(curId, curBlob);
   });
-  $('homeBtn').onclick = () => { saveState(); v.pause(); cancelCount(); releaseWake(); $('home').style.display = 'block'; renderRecent(); };
+  $('homeBtn').onclick = () => { saveState(); v.pause(); cancelCount(); if (!metRun.on) releaseWake(); $('home').style.display = 'block'; renderRecent(); };
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); else if (!v.paused) requestWake(); });
   window.addEventListener('pagehide', saveState);
   let lastSave = 0;
@@ -713,6 +761,103 @@
     const every = Number($('tEvery').value), step = Number($('tStep').value) / 100, max = Number($('tMax').value) / 100;
     if (loops % every === 0 && S.rate < max - 0.001) { S.rate = Math.min(max, S.rate + step); applyRate(); saveState(); chip('▲ ' + Math.round(S.rate * 100) + '%', 'スピードアップ', 1200); }
   }
+
+  // ================= メトロノーム（音だけ・先読みスケジュールでズレない） =================
+  const met = Object.assign({ bpm:120, beats:4, sub:1, acc:[2,1,1,1], vol:1, accel:false, unit:'bar', every:2, inc:1, max:160 }, store.get('met', {}));
+  const metRun = { on:false, timer:null, next:0, tick:0, bar:0, cur:120, lastInc:0, start:0 };
+  const metSave = () => store.set('met', met);
+  const EVERY = { bar:[1,2,4,8,16], sec:[10,15,20,30,45,60,90,120] };
+  function metAudio(){
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){} // マナーモードでも鳴らす
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    actx.resume(); return actx;
+  }
+  function metClick(at, kind){ // kind: 2=強 1=普通 0.5=裏
+    const o = actx.createOscillator(), g = actx.createGain(), vol = met.vol;
+    o.type = 'triangle';
+    o.frequency.value = kind === 2 ? 1760 : kind === 1 ? 1175 : 880;
+    const peak = (kind === 2 ? 0.9 : kind === 1 ? 0.6 : 0.3) * vol;
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + 0.0015); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.05);
+    o.connect(g); g.connect(actx.destination); o.start(at); o.stop(at + 0.06);
+  }
+  function metSched(){
+    const ahead = actx.currentTime + 0.15;
+    while (metRun.next < ahead) {
+      const sub = met.sub, perBar = met.beats * sub, t = metRun.tick % perBar, beat = Math.floor(t / sub);
+      if (t % sub === 0) { const a = met.acc[beat] ?? 1; if (a > 0) metClick(metRun.next, a); }
+      else metClick(metRun.next, 0.5);
+      metRun.tick++;
+      if (metRun.tick % perBar === 0) {
+        metRun.bar++;
+        if (met.accel && met.unit === 'bar' && metRun.bar % met.every === 0) metBump();
+      }
+      if (met.accel && met.unit === 'sec' && metRun.next - metRun.lastInc >= met.every) { metRun.lastInc += met.every; metBump(); }
+      metRun.next += 60 / metRun.cur / sub;
+    }
+  }
+  function metBump(){ if (metRun.cur < met.max) { metRun.cur = Math.min(met.max, metRun.cur + met.inc); setTimeout(metPaintBpm, Math.max(0, (metRun.next - actx.currentTime) * 1000)); } }
+  function metStart(){
+    metAudio();
+    metRun.on = true; metRun.cur = met.bpm; metRun.tick = 0; metRun.bar = 0;
+    metRun.next = metRun.start = metRun.lastInc = actx.currentTime + 0.08;
+    metSched(); metRun.timer = setInterval(metSched, 25);
+    requestWake(); metPaint();
+  }
+  function metStop(){
+    metRun.on = false; clearInterval(metRun.timer); metRun.timer = null;
+    if (v.paused) releaseWake(); metPaint();
+  }
+  function metPaintBpm(){
+    const cur = metRun.on ? metRun.cur : met.bpm;
+    $('metBpm').textContent = Math.round(cur);
+    $('metNow').textContent = metRun.on && met.accel ? (cur !== met.bpm ? `スタート ${met.bpm} → 今 ${Math.round(cur)}` : `${met.unit === 'bar' ? met.every + '小節' : met.every + '秒'}ごとに +${met.inc}`) : '';
+    $('metSl').value = met.bpm;
+  }
+  function metPaint(){
+    $('metGo').textContent = metRun.on ? '■ ストップ' : '▶ スタート'; $('metGo').classList.toggle('on', metRun.on);
+    $('metBtn').classList.toggle('on', metRun.on);
+    $('metBeats').textContent = met.beats + '拍';
+    while (met.acc.length < met.beats) met.acc.push(1);
+    $('metAcc').innerHTML = Array.from({ length:met.beats }, (_, i) => { const a = met.acc[i]; return `<button data-i="${i}" class="a${a}">${i + 1}<i>${a === 2 ? '強' : a === 1 ? '普通' : 'なし'}</i></button>`; }).join('');
+    $('metSub').querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === met.sub));
+    $('metVol').value = met.vol;
+    $('metAccSw').classList.toggle('on', met.accel); $('metAccBox').classList.toggle('on', met.accel);
+    $('metEvery').innerHTML = EVERY[met.unit].map(x => `<option value="${x}">${x}</option>`).join('');
+    if (!EVERY[met.unit].includes(met.every)) met.every = EVERY[met.unit][1];
+    $('metEvery').value = met.every; $('metUnit').value = met.unit; $('metInc').value = met.inc;
+    let mx = ''; for (let b = 40; b <= 300; b += 5) mx += `<option value="${b}">${b} BPM</option>`; $('metMax').innerHTML = mx;
+    met.max = Math.round(met.max / 5) * 5; $('metMax').value = met.max;
+    metPaintBpm();
+  }
+  const metSetBpm = b => {
+    met.bpm = clamp(Math.round(b), 30, 300); metSave();
+    if (metRun.on) { metRun.cur = met.bpm; metRun.bar = 0; metRun.lastInc = actx.currentTime; }
+    metPaintBpm();
+  };
+  const metOpen = () => { metPaint(); $('metSheet').classList.add('open'); };
+  $('metBtn').onclick = metOpen; $('metHome').onclick = metOpen;
+  $('metClose').onclick = () => $('metSheet').classList.remove('open');
+  $('metSheet').addEventListener('click', e => { if (e.target.id === 'metSheet') $('metSheet').classList.remove('open'); });
+  $('metGo').onclick = () => metRun.on ? metStop() : metStart();
+  $('metSheet').querySelectorAll('[data-db]').forEach(b => b.onclick = () => metSetBpm((metRun.on ? metRun.cur : met.bpm) + Number(b.dataset.db)));
+  $('metSl').oninput = e => metSetBpm(Number(e.target.value));
+  let mTaps = [];
+  $('metTap').onclick = () => {
+    const now = performance.now();
+    if (mTaps.length && now - mTaps[mTaps.length - 1] > 2000) mTaps = [];
+    mTaps.push(now); if (mTaps.length > 6) mTaps.shift();
+    if (mTaps.length >= 2) metSetBpm(60000 / ((mTaps[mTaps.length - 1] - mTaps[0]) / (mTaps.length - 1)));
+  };
+  $('metBm').onclick = () => { met.beats = Math.max(1, met.beats - 1); metSave(); metPaint(); };
+  $('metBp').onclick = () => { met.beats = Math.min(12, met.beats + 1); metSave(); metPaint(); };
+  $('metAcc').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const i = Number(b.dataset.i); met.acc[i] = met.acc[i] === 2 ? 1 : met.acc[i] === 1 ? 0 : 2; metSave(); metPaint(); });
+  $('metSub').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; met.sub = Number(b.dataset.v); if (metRun.on) metRun.tick = Math.ceil(metRun.tick / (met.beats * met.sub)) * met.beats * met.sub; metSave(); metPaint(); });
+  $('metVol').oninput = e => { met.vol = Number(e.target.value); metSave(); };
+  $('metAccSw').onclick = () => { met.accel = !met.accel; if (metRun.on) { metRun.bar = 0; metRun.lastInc = actx.currentTime; } metSave(); metPaint(); };
+  $('metEvery').onchange = e => { met.every = Number(e.target.value); metSave(); metPaintBpm(); };
+  $('metUnit').onchange = e => { met.unit = e.target.value; met.every = EVERY[met.unit][met.unit === 'bar' ? 1 : 3]; if (metRun.on) { metRun.bar = 0; metRun.lastInc = actx.currentTime; } metSave(); metPaint(); };
+  $('metInc').onchange = e => { met.inc = Number(e.target.value); metSave(); metPaintBpm(); };
+  $('metMax').onchange = e => { met.max = Number(e.target.value); metSave(); };
 
   // ================= カウントイン（クリック音は別の音声経路で鳴らす：動画の音には影響なし） =================
   let actx = null, counting = false, countTimers = [];
