@@ -480,7 +480,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.19-1';
+  const APP_VERSION = '2026.11.19-2';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -781,6 +781,9 @@
     o.connect(g); g.connect(actx.destination); o.start(at); o.stop(at + 0.06);
   }
   function metSched(){
+    if (actx.state !== 'running') return;
+    // 遅れすぎてたら（裏に行ってた等）まとめて鳴らさずに今から再開
+    if (metRun.next < actx.currentTime - 0.05) { metRun.next = actx.currentTime + 0.05; metRun.lastInc = metRun.next; }
     const ahead = actx.currentTime + 0.15;
     while (metRun.next < ahead) {
       const sub = met.sub, perBar = met.beats * sub, t = metRun.tick % perBar, beat = Math.floor(t / sub);
@@ -795,6 +798,33 @@
       metRun.next += 60 / metRun.cur / sub;
     }
   }
+  // 他のアプリから戻った時：iPhoneは音の出口を止めてしまう（止まってるのに「動いてる」と言う時もある）
+  // → 戻った瞬間にまず起こしてみて、次に画面を触った時に音の出口ごと作り直す（指で触った時なら確実に鳴らせる）
+  let needFresh = false;
+  const AC = () => new (window.AudioContext || window.webkitAudioContext)();
+  function metResync(){ if (metRun.on && actx) { metRun.next = metRun.lastInc = actx.currentTime + 0.08; } }
+  function audioBack(){
+    if (!actx) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+    needFresh = true;
+    try { actx.resume().then(metResync, () => {}); } catch(e){}
+    metResync();
+    if (metRun.on) setTimeout(() => { if (actx.state !== 'running' && metRun.on) chip('画面をタップすると', 'メトロノームの音が戻る', 2000); }, 600);
+  }
+  function audioFresh(){ // タップの中で同期的に呼ぶ
+    needFresh = false;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+    const old = actx; actx = AC();
+    try { actx.resume(); } catch(e){}
+    try { old && old.close(); } catch(e){}
+    metResync();
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) audioBack(); });
+  addEventListener('pageshow', e => { if (e.persisted) audioBack(); });
+  ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => {
+    if (!actx || counting) return;
+    if (actx.state !== 'running' || (needFresh && metRun.on)) audioFresh(); else needFresh = false;
+  }, true));
   function metBump(){ if (metRun.cur < met.max) { metRun.cur = Math.min(met.max, metRun.cur + met.inc); setTimeout(metPaintBpm, Math.max(0, (metRun.next - actx.currentTime) * 1000)); } }
   function metStart(){
     metAudio();
