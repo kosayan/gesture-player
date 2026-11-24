@@ -122,6 +122,7 @@
   <div class="chips">
     <select class="q" id="qRate" aria-label="再生速度"></select>
     <select class="q" id="qSkip" aria-label="スキップ秒数"></select>
+    <select class="q" id="qBoost" aria-label="音量ブースト"></select>
     <button class="q a" id="aBtn">A</button>
     <button class="q a" id="bBtn">B</button>
     <button class="q" id="loopClr" style="display:none">リピート解除</button>
@@ -153,6 +154,8 @@
     <div class="set"><span>再生位置を覚えとく</span><input type="checkbox" id="optResume" checked></div>
     <p class="help">・波形は最初に開いたときに作る（長い音声は数秒〜数十秒かかる）。2回目からは保存した波形をすぐ出す<br>
     ・ロック画面やコントロールセンターから再生・停止・スキップできる<br>
+    ・🔊で音量を最大4倍までブーストできる（大きくしすぎても音割れしにくいよう自動で抑える）。ブースト中は画面ロックで止まることがあるで<br>
+    ・波形は耳の聞こえ方に合わせた大きさ。音が大きいとこほど濃い色になる<br>
     ・音声はiPhoneの中で再生されるだけで、どこにも送信されへんで</p>
     <div style="margin-top:16px"><button class="btn ghost upd">⟳ アプリを最新版に更新</button></div>
     <div class="ver"></div>
@@ -170,7 +173,7 @@
   const fmtDiff = d => (d >= 0 ? '+' : '−') + (Math.abs(d) < 60 ? Math.round(Math.abs(d)) + '秒' : fmt(Math.abs(d)));
 
   // ================= 更新 =================
-  const APP_VERSION = '2026.11.24-1';
+  const APP_VERSION = '2026.11.24-2';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -190,18 +193,21 @@
     del(k){ try { localStorage.removeItem('gap_'+k); } catch(e){} }
   };
   const opt = { rate:store.get('rate', 1), skip:store.get('skip', 10), hold:store.get('hold', 2), pitch:store.get('pitch', true),
-    keep:store.get('keep', 30), resume:store.get('resume', true), zoom:store.get('zoom', 60) };
+    keep:store.get('keep', 30), resume:store.get('resume', true), zoom:store.get('zoom', 60), boost:store.get('boost', 1) };
   const RATES = [0.5,0.6,0.7,0.75,0.8,0.85,0.9,0.95,1,1.1,1.25,1.5,1.75,2,2.5,3];
   $('qRate').innerHTML = RATES.map(r => `<option value="${r}">${r}x</option>`).join('');
+  const BOOSTS = [1,1.25,1.5,2,2.5,3,4];
+  $('qBoost').innerHTML = BOOSTS.map(b => `<option value="${b}">🔊${Math.round(b * 100)}%</option>`).join('');
   $('qSkip').innerHTML = Array.from({ length:60 }, (_, i) => `<option value="${i+1}">${i+1}秒</option>`).join('');
   function syncUI(){
-    $('qRate').value = opt.rate; $('qSkip').value = opt.skip;
+    $('qRate').value = opt.rate; $('qSkip').value = opt.skip; $('qBoost').value = opt.boost; $('qBoost').classList.toggle('on', opt.boost > 1);
     $('optHold').value = opt.hold; $('optPitch').checked = opt.pitch; $('optKeep').value = opt.keep; $('optResume').checked = opt.resume;
     $('backBtn').textContent = '−' + opt.skip; $('fwdBtn').textContent = '+' + opt.skip;
   }
   function setOpt(k, v){ opt[k] = v; store.set(k, v); syncUI(); }
   $('qRate').addEventListener('change', e => { setOpt('rate', Number(e.target.value)); if (!holding) au.playbackRate = opt.rate; });
   $('qSkip').addEventListener('change', e => setOpt('skip', Number(e.target.value)));
+  $('qBoost').addEventListener('change', e => { setOpt('boost', Number(e.target.value)); ensureBoost(); });
   $('optHold').addEventListener('change', e => setOpt('hold', Number(e.target.value)));
   $('optPitch').addEventListener('change', e => { setOpt('pitch', e.target.checked); applyPitch(); });
   $('optKeep').addEventListener('change', e => { setOpt('keep', Number(e.target.value)); trimRecent().then(renderRecent); });
@@ -296,6 +302,31 @@
   let holding = false, loopA = null, loopB = null;
   function applyPitch(){ try { au.preservesPitch = opt.pitch; au.webkitPreservesPitch = opt.pitch; au.mozPreservesPitch = opt.pitch; } catch(e){} }
   applyPitch();
+
+  // ================= 音量ブースト =================
+  // 普通の再生はiPhoneの最大音量が上限なので、Web Audioで増幅＋音割れ防止のリミッターを通す
+  // （iPhoneの制限で、ブーストを一度使うまではこの経路を通さない）
+  let actx = null, gainN = null;
+  function ensureBoost(){
+    if (!actx && opt.boost <= 1) return;
+    if (!actx) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        actx = new AC();
+        const src = actx.createMediaElementSource(au);
+        gainN = actx.createGain();
+        const lim = actx.createDynamicsCompressor();
+        lim.threshold.value = -3; lim.knee.value = 2; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.15;
+        src.connect(gainN); gainN.connect(lim); lim.connect(actx.destination);
+      } catch(e) { actx = null; return; }
+    }
+    gainN.gain.value = opt.boost;
+    if (actx.state !== 'running') actx.resume().catch(()=>{});
+  }
+  // iPhoneは「指で触った瞬間」にしか音の準備をさせてくれへんので、触るたびに確認
+  ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => { if (opt.boost > 1 || actx) ensureBoost(); }, { capture:true, passive:true }));
+  au.addEventListener('play', () => { if (actx && actx.state !== 'running') actx.resume().catch(()=>{}); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && actx && actx.state !== 'running') actx.resume().catch(()=>{}); });
   const fileId = f => f.name + '_' + f.size + '_' + (f.lastModified || 0);
   const natural = new Intl.Collator('ja', { numeric:true, sensitivity:'base' });
 
@@ -409,43 +440,175 @@
   $('loopClr').onclick = () => { loopA = loopB = null; updateLoopUI(); };
 
   // ================= 波形の作成 =================
-  const PPS = 400; // 1秒あたりの波形の細かさ（細かいほどギザギザ）
-  const PEAK_V = 2; // 波形データの形式。変えたら古い波形は作り直す
+  // ・上（＋）と下（−）のピーク … ギザギザの外形
+  // ・聞こえ方に合わせた音量（低音を弱め、耳に届きやすい中高音を強める＝ラウドネス） … 中の濃い部分と色の濃さ
+  // ・目盛りはdB（人の耳は音量を対数で感じるので、こっちの方が「聞こえた大きさ」に近い）
+  // ・長い音声は5分ずつに分けて作る（iPhoneのメモリ不足・長さの読み違いで後半が棒になるのを防ぐ）
+  const PPS = 400;      // 1秒あたりの波形の細かさ
+  const PEAK_V = 3;     // 波形データの形式。変えたら古い波形は作り直す
+  const CHUNK_SEC = 300;
+  const DB_RANGE = 45;  // 何dBまでを高さ0〜最大に割り当てるか
+  const sleep0 = () => new Promise(r => setTimeout(r, 0));
+
+  async function waitDuration(){
+    const ok = () => au.duration && isFinite(au.duration);
+    if (!ok()) await new Promise(r => {
+      const f = () => { if (ok()) { au.removeEventListener('durationchange', f); au.removeEventListener('loadedmetadata', f); r(); } };
+      au.addEventListener('durationchange', f); au.addEventListener('loadedmetadata', f); setTimeout(r, 8000);
+    });
+    return ok() ? au.duration : 0;
+  }
+  function decodeAB(arrbuf, sr){
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new OAC(1, sr, sr);
+    return new Promise((res, rej) => { const p = ctx.decodeAudioData(arrbuf, res, rej); if (p && p.then) p.then(res, rej); });
+  }
+  // 2次フィルタ（RBJ式）
+  function biq(type, f, sr, gainDb){
+    const w = 2 * Math.PI * f / sr, cs = Math.cos(w), sn = Math.sin(w);
+    let b0, b1, b2, a0, a1, a2;
+    if (type === 'hp') { const al = sn / (2 * 0.7071); b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = b0; a0 = 1 + al; a1 = -2 * cs; a2 = 1 - al; }
+    else { const A = Math.pow(10, gainDb / 40), al = sn / Math.SQRT2, sA = 2 * Math.sqrt(A) * al;
+      b0 = A * ((A + 1) + (A - 1) * cs + sA); b1 = -2 * A * ((A - 1) + (A + 1) * cs); b2 = A * ((A + 1) + (A - 1) * cs - sA);
+      a0 = (A + 1) - (A - 1) * cs + sA; a1 = 2 * ((A - 1) - (A + 1) * cs); a2 = (A + 1) - (A - 1) * cs - sA; }
+    return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+  }
+  // 少しずつ流し込める解析器（分割して作っても途切れないように状態を持ち越す）
+  function makeAnalyzer(sr){
+    const spb = sr / PPS, F1 = biq('hp', 80, sr), F2 = biq('hs', 1500, sr, 4);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, u1 = 0, u2 = 0, z1 = 0, z2 = 0;
+    let g = 0, nextB = spb, hi = 0, lo = 0, sq = 0, cnt = 0;
+    const H = [], L = [], S = [];
+    const flush = () => { H.push(hi); L.push(lo); S.push(cnt ? sq / cnt : 0); hi = lo = sq = cnt = 0; };
+    return {
+      async push(chs){
+        const n = chs[0].length, c0 = chs[0], c1 = chs[1] || null;
+        const [a0, a1, a2, a3, a4] = F1, [b0, b1, b2, b3, b4] = F2;
+        for (let s0 = 0; s0 < n; s0 += 1 << 20) {
+          const e0 = Math.min(n, s0 + (1 << 20));
+          for (let k = s0; k < e0; k++) {
+            let m, ph, pl;
+            if (c1) { const p = c0[k], q = c1[k]; m = (p + q) * 0.5; ph = p > q ? p : q; pl = p < q ? -p : -q; }
+            else { m = c0[k]; ph = m; pl = -m; }
+            const y = a0 * m + a1 * x1 + a2 * x2 - a3 * y1 - a4 * y2; x2 = x1; x1 = m; y2 = y1; y1 = y;
+            const z = b0 * y + b1 * u1 + b2 * u2 - b3 * z1 - b4 * z2; u2 = u1; u1 = y; z2 = z1; z1 = z;
+            if (g >= nextB) { flush(); nextB += spb; }
+            if (ph > hi) hi = ph; if (pl > lo) lo = pl; sq += z * z; cnt++; g++;
+          }
+          await sleep0(); // 画面が固まらないように
+        }
+      },
+      end(){ if (cnt) flush(); return { H, L, S, dur:g / sr }; }
+    };
+  }
+  const chans = ab => { const a = [ab.getChannelData(0)]; if (ab.numberOfChannels > 1) a.push(ab.getChannelData(1)); return a; };
+
+  // --- MP3：フレームの頭を探して5分ずつに切る ---
+  function mp3FrameLen(b, i){
+    if (i + 4 > b.length || b[i] !== 0xFF || (b[i + 1] & 0xE0) !== 0xE0) return 0;
+    const ver = (b[i + 1] >> 3) & 3, layer = (b[i + 1] >> 1) & 3, bri = b[i + 2] >> 4, sri = (b[i + 2] >> 2) & 3, pad = (b[i + 2] >> 1) & 1;
+    if (ver === 1 || layer !== 1 || bri === 0 || bri === 15 || sri === 3) return 0;
+    const br = (ver === 3 ? [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320] : [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160])[bri] * 1000;
+    const sr = [[11025,12000,8000], null, [22050,24000,16000], [44100,48000,32000]][ver][sri];
+    return Math.floor((ver === 3 ? 144 : 72) * br / sr) + pad;
+  }
+  async function mp3Sync(blob, pos){
+    const b = new Uint8Array(await blob.slice(pos, pos + 32768).arrayBuffer());
+    for (let i = 0; i < b.length - 4; i++) { const l = mp3FrameLen(b, i); if (l && mp3FrameLen(b, i + l)) return pos + i; }
+    return pos;
+  }
+  async function analyzeMp3(blob, head, dur, onProg){
+    let start = 0;
+    if (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) start = 10 + ((head[6] & 127) << 21 | (head[7] & 127) << 14 | (head[8] & 127) << 7 | (head[9] & 127)) + (head[5] & 0x10 ? 10 : 0);
+    start = await mp3Sync(blob, start);
+    const sr = 16000, an = makeAnalyzer(sr), size = blob.size;
+    const chunk = dur ? Math.max(1 << 20, Math.floor((size - start) / dur * CHUNK_SEC)) : 5 << 20;
+    for (let p = start; p < size; ) {
+      let q = Math.min(size, p + chunk);
+      if (q < size) q = await mp3Sync(blob, q);
+      if (q <= p) q = Math.min(size, p + chunk);
+      const ab = await decodeAB(await blob.slice(p, q).arrayBuffer(), sr);
+      await an.push(chans(ab)); p = q; onProg(p / size);
+    }
+    return an.end();
+  }
+  // --- WAV：ヘッダを付け直して5分ずつに切る ---
+  async function analyzeWav(blob, onProg){
+    const hb = new Uint8Array(await blob.slice(0, 1 << 16).arrayBuffer()), dv = new DataView(hb.buffer);
+    let pos = 12, fmt = null, dStart = 0, dSize = 0;
+    while (pos + 8 <= hb.length) {
+      const idt = String.fromCharCode(hb[pos], hb[pos + 1], hb[pos + 2], hb[pos + 3]), sz = dv.getUint32(pos + 4, true);
+      if (idt === 'fmt ') fmt = hb.slice(pos, pos + 8 + sz);
+      if (idt === 'data') { dStart = pos + 8; dSize = (sz === 0 || sz === 0xFFFFFFFF || dStart + sz > blob.size) ? blob.size - dStart : sz; break; }
+      pos += 8 + sz + (sz & 1);
+    }
+    if (!fmt || !dStart) throw new Error('wav');
+    const fv = new DataView(fmt.buffer), byteRate = fv.getUint32(16, true), align = fv.getUint16(20, true);
+    const chunk = Math.max(align, Math.floor(byteRate * CHUNK_SEC / align) * align);
+    const sr = 16000, an = makeAnalyzer(sr);
+    for (let p = dStart; p < dStart + dSize; p += chunk) {
+      const len = Math.min(chunk, dStart + dSize - p), h = new Uint8Array(12 + fmt.length + 8), hv = new DataView(h.buffer);
+      h.set([82,73,70,70], 0); hv.setUint32(4, 4 + fmt.length + 8 + len, true); h.set([87,65,86,69], 8); h.set(fmt, 12);
+      h.set([100,97,116,97], 12 + fmt.length); hv.setUint32(16 + fmt.length, len, true);
+      const ab = await decodeAB(await new Blob([h, blob.slice(p, p + len)]).arrayBuffer(), sr);
+      await an.push(chans(ab)); onProg((p + len - dStart) / dSize);
+    }
+    return an.end();
+  }
+  // --- それ以外（m4aなど）：まとめて読む。長いほどサンプルレートを下げてメモリを節約 ---
+  async function analyzeWhole(blob, dur){
+    const sr = dur > 3600 ? 6000 : dur > 900 ? 8000 : 16000;
+    const ab = await decodeAB(await blob.arrayBuffer(), sr);
+    const an = makeAnalyzer(sr); await an.push(chans(ab)); return an.end();
+  }
+
+  function usePeaks(s){ peaks = { hi:s.hi, lo:s.lo, loud:s.loud, n:s.hi.length, pps:s.pps, q0:s.q0, q1:s.q1 }; ovKey = ''; }
   async function loadPeaks(id, blob){
     const saved = await get('peaks', id);
-    if (saved && saved.v === PEAK_V && saved.hi && id === curId) {
-      peaks = { hi:saved.hi, lo:saved.lo, rms:saved.rms, n:saved.hi.length }; ovKey = ''; $('waveMsg').textContent = ''; kick(); return;
-    }
+    if (id !== curId) return;
+    if (saved && saved.v === PEAK_V && saved.hi) { usePeaks(saved); $('waveMsg').textContent = ''; kick(); return; }
     try {
-      if (!au.duration || !isFinite(au.duration)) await new Promise(r => { au.addEventListener('loadedmetadata', r, { once:true }); setTimeout(r, 5000); });
-      const dur = au.duration || 600;
-      // 低いサンプルレートでデコードしてメモリを節約（波形の見た目には十分）
-      const sr = dur > 1800 ? 3000 : dur > 600 ? 6000 : 11025;
-      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      const ctx = new OAC(1, Math.max(1, Math.ceil(dur * sr)), sr);
-      const buf = await blob.arrayBuffer();
+      const dur = await waitDuration();
       if (id !== curId) return;
-      const ab = await new Promise((res, rej) => { const p = ctx.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+      const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+      const nm = (curName || '').toLowerCase();
+      const isWav = head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 && head[8] === 0x57;
+      const isMp3 = /\.mp3$/.test(nm) || (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) || mp3FrameLen(head, 0) > 0;
+      const onProg = f => { if (id === curId) $('waveMsg').textContent = '波形を準備中… ' + Math.round(f * 100) + '%'; };
+      let r = null;
+      try { if (isWav) r = await analyzeWav(blob, onProg); else if (isMp3) r = await analyzeMp3(blob, head, dur, onProg); }
+      catch(e) { r = null; }
       if (id !== curId) return;
-      const chs = []; for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
-      // 上側（＋）と下側（−）を別々に持つ＋音の芯（RMS）も取る → 上下非対称のアナログっぽい形になる
-      const n = Math.ceil(ab.duration * PPS), spb = ab.sampleRate / PPS, len = chs[0].length;
-      const rHi = new Float32Array(n), rLo = new Float32Array(n), rRms = new Float32Array(n);
-      let max = 0;
+      if (!r || !r.H.length) { $('waveMsg').textContent = '波形を準備中…'; r = await analyzeWhole(blob, dur); }
+      if (id !== curId) return;
+
+      const n = r.H.length;
+      let maxP = 0; for (let i = 0; i < n; i++) { if (r.H[i] > maxP) maxP = r.H[i]; if (r.L[i] > maxP) maxP = r.L[i]; }
+      maxP = maxP || 1;
+      const toU8 = v => { if (v <= 0) return 0; const d = 20 * Math.log10(v / maxP); return Math.round(clamp(1 + d / DB_RANGE, 0, 1) * 255); };
+      // 音量（ラウドネス）は約20msの窓でならす
+      const W2 = 4, loudR = new Float32Array(n); let acc = 0;
+      for (let i = 0; i < Math.min(n, W2); i++) acc += r.S[i];
       for (let i = 0; i < n; i++) {
-        const s = Math.floor(i * spb), e = Math.min(len, Math.max(s + 1, Math.floor((i + 1) * spb)));
-        let hi = 0, lo = 0, sq = 0, cnt = 0;
-        for (const ch of chs) for (let k = s; k < e; k++) { const v = ch[k]; if (v > hi) hi = v; else if (-v > lo) lo = -v; sq += v * v; cnt++; }
-        rHi[i] = hi; rLo[i] = lo; rRms[i] = cnt ? Math.sqrt(sq / cnt) : 0;
-        if (hi > max) max = hi; if (lo > max) max = lo;
+        if (i + W2 < n) acc += r.S[i + W2]; if (i - W2 - 1 >= 0) acc -= r.S[i - W2 - 1];
+        const cnt = Math.min(n - 1, i + W2) - Math.max(0, i - W2) + 1; loudR[i] = Math.sqrt(Math.max(0, acc) / cnt);
       }
-      const q = v => Math.min(255, Math.round(Math.pow(v / (max || 1), 0.65) * 255)); // 小さい音も見えるよう少し持ち上げ（潰しすぎるとギザギザが消える）
-      const hi = new Uint8Array(n), lo = new Uint8Array(n), rms = new Uint8Array(n);
-      for (let i = 0; i < n; i++) { hi[i] = q(rHi[i]); lo[i] = q(rLo[i]); rms[i] = q(rRms[i] * 1.2); }
-      peaks = { hi, lo, rms, n }; ovKey = '';
+      const hi = new Uint8Array(n), lo = new Uint8Array(n), loud = new Uint8Array(n), hist = new Uint32Array(256);
+      for (let i = 0; i < n; i++) { hi[i] = toU8(r.H[i]); lo[i] = toU8(r.L[i]); loud[i] = toU8(loudR[i] * 1.6); if (loud[i] > 8) hist[loud[i]]++; }
+      // 色の濃さの基準：この音声の中の「静かめ」(10%)〜「一番大きい」(98%)
+      let tot = 0; for (let i = 0; i < 256; i++) tot += hist[i];
+      let q0 = 0, q1 = 255, run = 0;
+      if (tot) { for (let i = 0; i < 256; i++) { run += hist[i]; if (run < tot * 0.1) q0 = i; if (run < tot * 0.98) q1 = i + 1; } }
+      if (q1 - q0 < 20) q0 = Math.max(0, q1 - 20);
+      // 再生の時間とずれないように合わせる（ほぼ同じ長さなら引き伸ばしてピッタリに）
+      const ratio = dur ? r.dur / dur : 1;
+      const pps = dur && ratio > 0.96 && ratio < 1.04 ? n / dur : PPS;
+      const rec = { id, v:PEAK_V, hi, lo, loud, pps, q0, q1 };
+      usePeaks(rec);
       $('waveMsg').textContent = '';
+      if (dur && ratio <= 0.96) chip('後半の波形が作れへんかった', '再生はできるで', 3000);
       kick();
-      put('peaks', { id, v:PEAK_V, hi, lo, rms }).catch(()=>{});
+      put('peaks', rec).catch(()=>{});
       const MN = 120, mini = new Uint8Array(MN);
       for (let i = 0; i < MN; i++) { let m = 0; const s = Math.floor(i * n / MN), e = Math.floor((i + 1) * n / MN); for (let k = s; k < e; k++) { if (hi[k] > m) m = hi[k]; if (lo[k] > m) m = lo[k]; } mini[i] = m; }
       metaPatch(id, { mini });
@@ -471,46 +634,63 @@
     draw();
     if (!au.paused || interacting) raf = requestAnimationFrame(frame);
   }
-  // 波形の区間 [f0, f1)（単位：波形データの番号）の 上・下・芯 を rH/rL/rR に入れる
+  // 時間 [t0, t1) の 上・下・音量 を rH/rL/rR（0〜1）に入れる
   let rH = 0, rL = 0, rR = 0;
-  function rangeAt(f0, f1){
+  function rangeAt(t0, t1){
     rH = rL = rR = 0;
     if (!peaks) return;
-    const P = peaks, n = P.n;
+    const P = peaks, n = P.n, f0 = t0 * P.pps, f1 = t1 * P.pps;
+    if (f0 >= n || f1 <= 0) return;
     if (f1 - f0 < 1) {
-      // 拡大しすぎてデータより画面が細かいときは、間をなめらかにつなぐ（段々にならないように）
+      // 拡大しすぎてデータより画面が細かいときは、間をなめらかにつなぐ
       const f = clamp((f0 + f1) / 2 - 0.5, 0, n - 1), i = Math.floor(f), j = Math.min(n - 1, i + 1), r = f - i;
-      rH = (P.hi[i] + (P.hi[j] - P.hi[i]) * r) / 255; rL = (P.lo[i] + (P.lo[j] - P.lo[i]) * r) / 255; rR = (P.rms[i] + (P.rms[j] - P.rms[i]) * r) / 255;
+      rH = (P.hi[i] + (P.hi[j] - P.hi[i]) * r) / 255; rL = (P.lo[i] + (P.lo[j] - P.lo[i]) * r) / 255; rR = (P.loud[i] + (P.loud[j] - P.loud[i]) * r) / 255;
       return;
     }
     const i0 = Math.max(0, Math.floor(f0)), i1 = Math.min(n, Math.ceil(f1));
     let h = 0, l = 0, m = 0;
-    for (let i = i0; i < i1; i++) { if (P.hi[i] > h) h = P.hi[i]; if (P.lo[i] > l) l = P.lo[i]; if (P.rms[i] > m) m = P.rms[i]; }
+    for (let i = i0; i < i1; i++) { if (P.hi[i] > h) h = P.hi[i]; if (P.lo[i] > l) l = P.lo[i]; if (P.loud[i] > m) m = P.loud[i]; }
     rH = h / 255; rL = l / 255; rR = m / 255;
   }
-  // 1ピクセルごとの上下の線を作って塗る（棒グラフじゃなく一本のギザギザした形）
+  // 色：音が大きいほど濃く、小さいほど薄く（LV段階）
+  const LV = 14;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mkPal = (q, l) => Array.from({ length:LV }, (_, i) => { const t = i / (LV - 1), c = q.map((v, k) => lerp(v, l[k], t));
+    return { core:`rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${c[3].toFixed(2)})`, env:`rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${(c[3] * 0.32).toFixed(2)})` }; });
+  const PAL_PLAYED = mkPal([255,190,190,.42], [255,28,36,1]);   // 薄いピンク → 濃い赤
+  const PAL_REST = mkPal([255,255,255,.2], [255,255,255,.95]);  // 薄いグレー → 白
+  const EDGE_PLAYED = 'rgba(255,110,105,.85)', EDGE_REST = 'rgba(255,255,255,.55)';
+  const lvOf = r => peaks ? Math.round(clamp((r * 255 - peaks.q0) / (peaks.q1 - peaks.q0), 0, 1) * (LV - 1)) : 0;
+  function mkCols(len){ return { top:new Float32Array(len), bot:new Float32Array(len), rt:new Float32Array(len), rb:new Float32Array(len), lv:new Uint8Array(len), N:len }; }
   let colBuf = null;
-  function cols(len){ if (!colBuf || colBuf.top.length < len) colBuf = { top:new Float32Array(len), bot:new Float32Array(len), rt:new Float32Array(len), rb:new Float32Array(len) }; return colBuf; }
-  function shapePath(c, xs, top, bot, i0, i1, step){
-    c.beginPath(); c.moveTo(xs + i0 * step, (top[i0] + bot[i0]) / 2);
-    for (let i = i0; i < i1; i++) c.lineTo(xs + i * step, top[i]);
-    for (let i = i1 - 1; i >= i0; i--) c.lineTo(xs + i * step, bot[i]);
-    c.closePath();
+  function cols(len){ if (!colBuf || colBuf.top.length < len) colBuf = mkCols(len + 64); return colBuf; }
+  function fillCol(b, i, mid, amp, minH){
+    b.top[i] = mid - Math.max(minH, rH * amp); b.bot[i] = mid + Math.max(minH, rL * amp);
+    b.rt[i] = mid - Math.min(rH, rR) * amp; b.rb[i] = mid + Math.min(rL, rR) * amp; b.lv[i] = lvOf(rR);
   }
-  // 再生済み（赤）／まだ（白）で塗り分け
-  const PAL_PLAYED = { env:'rgba(255,77,77,.38)', edge:'rgba(255,120,110,.95)', core:'rgba(255,77,77,1)' };
-  const PAL_REST = { env:'rgba(255,255,255,.16)', edge:'rgba(255,255,255,.7)', core:'rgba(255,255,255,.62)' };
-  function paintWave(c, xs, b, i0, i1, step, splitX, H, lw){
-    if (i1 - i0 < 2) return;
-    const parts = [[-1e9, splitX, PAL_PLAYED], [splitX, 1e9, PAL_REST]];
-    for (const [a, z, pal] of parts) {
-      if (z <= a) continue;
-      c.save(); c.beginPath(); c.rect(Math.max(-1, a), 0, Math.min(1e6, z) - Math.max(-1, a), H); c.clip();
-      shapePath(c, xs, b.top, b.bot, i0, i1, step);
-      c.fillStyle = pal.env; c.fill();
-      c.lineWidth = lw; c.lineJoin = 'miter'; c.strokeStyle = pal.edge; c.stroke();
-      shapePath(c, xs, b.rt, b.rb, i0, i1, step);
-      c.fillStyle = pal.core; c.fill();
+  function paintWave(c, xs, b, N, splitX, H, lw){
+    if (N < 2) return;
+    let k = clamp(Math.ceil(splitX - xs - 0.5), 0, N); // [0,k) が再生済み
+    const sides = [[0, k, PAL_PLAYED, EDGE_PLAYED], [k, N, PAL_REST, EDGE_REST]];
+    for (const [i0, i1, pal, edge] of sides) {
+      if (i1 <= i0) continue;
+      // 外形（薄い）と中身（濃い）を、色の段階ごとにまとめて塗る
+      for (const layer of ['env', 'core']) {
+        const T = layer === 'env' ? b.top : b.rt, B = layer === 'env' ? b.bot : b.rb;
+        for (let lv = 0; lv < LV; lv++) {
+          c.beginPath(); let any = false;
+          for (let i = i0; i < i1; i++) if (b.lv[i] === lv && B[i] > T[i]) { c.rect(xs + i, T[i], 1.02, B[i] - T[i]); any = true; }
+          if (any) { c.fillStyle = pal[lv][layer]; c.fill(); }
+        }
+      }
+      // ギザギザの輪郭線
+      const a = Math.max(0, i0 - 1), z = Math.min(N, i1 + 1);
+      c.save(); c.beginPath(); c.rect(xs + i0, 0, i1 - i0, H); c.clip();
+      c.beginPath(); c.moveTo(xs + a, b.top[a]);
+      for (let i = a; i < z; i++) c.lineTo(xs + i, b.top[i]);
+      c.moveTo(xs + a, b.bot[a]);
+      for (let i = a; i < z; i++) c.lineTo(xs + i, b.bot[i]);
+      c.lineWidth = lw; c.lineJoin = 'miter'; c.strokeStyle = edge; c.stroke();
       c.restore();
     }
   }
@@ -531,16 +711,15 @@
     }
     const dur = au.duration || 0;
     if (dur) {
-      // 1デバイスピクセルごとに上下の値を取る
-      const step = 1, xs0 = Math.max(0, Math.floor(W / 2 - t * pps)), xs1 = Math.min(W, Math.ceil(W / 2 + (dur - t) * pps));
-      const N = Math.max(0, Math.floor((xs1 - xs0) / step) + 1), b = cols(N), amp = H * 0.44, minH = 0.6 * dpr;
+      // 1デバイスピクセルごとに値を取る
+      const xs0 = Math.max(0, Math.floor(W / 2 - t * pps)), xs1 = Math.min(W, Math.ceil(W / 2 + (dur - t) * pps));
+      const N = Math.max(0, xs1 - xs0 + 1), b = cols(N), amp = H * 0.44, minH = 0.6 * dpr;
       for (let i = 0; i < N; i++) {
-        const px = xs0 + i * step, t0 = t + (px - W / 2) / pps;
-        if (peaks) rangeAt(t0 * PPS, (t0 + step / pps) * PPS); else { rH = rL = 0.03; rR = 0.015; }
-        b.top[i] = mid - Math.max(minH, rH * amp); b.bot[i] = mid + Math.max(minH, rL * amp);
-        b.rt[i] = mid - Math.min(rH, rR) * amp; b.rb[i] = mid + Math.min(rL, rR) * amp;
+        const t0 = t + (xs0 + i - W / 2) / pps;
+        if (peaks) rangeAt(t0, t0 + 1 / pps); else { rH = rL = 0.03; rR = 0.015; }
+        fillCol(b, i, mid, amp, minH);
       }
-      paintWave(x, xs0, b, 0, N, step, W / 2 + (played - t) * pps, H, Math.max(1, dpr * 0.75));
+      paintWave(x, xs0, b, N, W / 2 + (played - t) * pps, H, Math.max(1, dpr * 0.7));
     }
     // 秒の目盛り
     x.fillStyle = 'rgba(255,255,255,.35)'; x.font = `${11 * dpr}px -apple-system, sans-serif`; x.textAlign = 'center';
@@ -555,18 +734,17 @@
     const OW = oc.width, OH = oc.height, o = oc.getContext('2d');
     o.clearRect(0, 0, OW, OH);
     if (dur) {
-      const key = OW + 'x' + OH + ':' + (peaks ? peaks.n : 0);
+      const key = OW + 'x' + OH + ':' + dur + ':' + (peaks ? peaks.n : 0);
       if (key !== ovKey) {
-        const N = OW + 1, n = peaks ? peaks.n : 0, amp = OH * 0.44, m = OH / 2;
-        ovBuf = { top:new Float32Array(N), bot:new Float32Array(N), rt:new Float32Array(N), rb:new Float32Array(N), N };
+        const N = OW + 1, amp = OH * 0.44, m = OH / 2;
+        ovBuf = mkCols(N);
         for (let i = 0; i < N; i++) {
-          if (peaks) rangeAt(i / OW * n, (i + 1) / OW * n); else { rH = rL = 0.04; rR = 0.02; }
-          ovBuf.top[i] = m - Math.max(dpr * 0.5, rH * amp); ovBuf.bot[i] = m + Math.max(dpr * 0.5, rL * amp);
-          ovBuf.rt[i] = m - Math.min(rH, rR) * amp; ovBuf.rb[i] = m + Math.min(rL, rR) * amp;
+          if (peaks) rangeAt(i / OW * dur, (i + 1) / OW * dur); else { rH = rL = 0.04; rR = 0.02; }
+          fillCol(ovBuf, i, m, amp, dpr * 0.5);
         }
         ovKey = key;
       }
-      paintWave(o, 0, ovBuf, 0, ovBuf.N, 1, played / dur * OW, OH, Math.max(1, dpr * 0.6));
+      paintWave(o, 0, ovBuf, ovBuf.N, played / dur * OW, OH, Math.max(1, dpr * 0.6));
       // いま拡大して見てる範囲
       const vw = W / pps, vx0 = (t - vw / 2) / dur * OW, vx1 = (t + vw / 2) / dur * OW;
       o.strokeStyle = 'rgba(255,255,255,.7)'; o.lineWidth = dpr; o.strokeRect(vx0, dpr, Math.max(2 * dpr, vx1 - vx0), OH - 2 * dpr);
