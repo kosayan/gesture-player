@@ -407,6 +407,7 @@
   <div class="mbpm"><b id="metBpm">120</b><span>BPM</span><small id="metNow"></small></div>
   <div class="row"><button class="k" data-db="-5">−5</button><button class="k" data-db="-1">−1</button><button class="k" id="metTap">タップ</button><button class="k" data-db="1">+1</button><button class="k" data-db="5">+5</button></div>
   <input type="range" id="metSl" min="30" max="300" step="1">
+  <button class="k" id="metFix" style="width:100%; margin-top:10px; height:40px; font-size:13px; color:#bbb">🔈 音が鳴らん時はここを押す（音の出口を作り直す）</button>
   <div class="mlab">1小節の拍数</div>
   <div class="row"><button class="k" id="metBm">−</button><div class="k mval" id="metBeats">4拍</div><button class="k" id="metBp">＋</button></div>
   <div class="mlab">アクセント <small>（タップで 強 → 普通 → 鳴らさない を切り替え）</small></div>
@@ -480,7 +481,7 @@
   const fmt = s => { if (!isFinite(s)) s = 0; s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), sec = s % 60; return m + ':' + String(sec).padStart(2, '0'); };
   const fmt1 = s => { if (!isFinite(s)) s = 0; s = Math.max(0, s); const m = Math.floor(s / 60), sec = s - m * 60; return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1); };
 
-  const APP_VERSION = '2026.11.19-2';
+  const APP_VERSION = '2026.11.25-1';
   document.querySelectorAll('.ver').forEach(el => el.textContent = 'バージョン ' + APP_VERSION);
   document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', async () => {
     const label = btn.textContent; btn.textContent = '確認中…';
@@ -769,7 +770,7 @@
   const EVERY = { bar:[1,2,4,8,16], sec:[10,15,20,30,45,60,90,120] };
   function metAudio(){
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){} // マナーモードでも鳴らす
-    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!actx) { actx = new (window.AudioContext || window.webkitAudioContext)(); watchCtx(actx); }
     actx.resume(); return actx;
   }
   function metClick(at, kind){ // kind: 2=強 1=普通 0.5=裏
@@ -811,10 +812,12 @@
     metResync();
     if (metRun.on) setTimeout(() => { if (actx.state !== 'running' && metRun.on) chip('画面をタップすると', 'メトロノームの音が戻る', 2000); }, 600);
   }
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){} // 起動直後から（マナーモードでも鳴らす）
+  function watchCtx(c){ try { c.onstatechange = () => { if (c === actx && c.state !== 'running') needFresh = true; }; } catch(e){} }
   function audioFresh(){ // タップの中で同期的に呼ぶ
     needFresh = false;
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
-    const old = actx; actx = AC();
+    const old = actx; actx = AC(); watchCtx(actx);
     try { actx.resume(); } catch(e){}
     try { old && old.close(); } catch(e){}
     metResync();
@@ -823,11 +826,11 @@
   addEventListener('pageshow', e => { if (e.persisted) audioBack(); });
   ['touchend', 'click'].forEach(ev => document.addEventListener(ev, () => {
     if (!actx || counting) return;
-    if (actx.state !== 'running' || (needFresh && metRun.on)) audioFresh(); else needFresh = false;
+    if (actx.state !== 'running' || needFresh) audioFresh();
   }, true));
   function metBump(){ if (metRun.cur < met.max) { metRun.cur = Math.min(met.max, metRun.cur + met.inc); setTimeout(metPaintBpm, Math.max(0, (metRun.next - actx.currentTime) * 1000)); } }
   function metStart(){
-    metAudio();
+    if (actx) audioFresh(); else metAudio();
     metRun.on = true; metRun.cur = met.bpm; metRun.tick = 0; metRun.bar = 0;
     metRun.next = metRun.start = metRun.lastInc = actx.currentTime + 0.08;
     metSched(); metRun.timer = setInterval(metSched, 25);
@@ -869,6 +872,12 @@
   $('metClose').onclick = () => $('metSheet').classList.remove('open');
   $('metSheet').addEventListener('click', e => { if (e.target.id === 'metSheet') $('metSheet').classList.remove('open'); });
   $('metGo').onclick = () => metRun.on ? metStop() : metStart();
+  $('metFix').onclick = () => {
+    audioFresh();
+    // 確認用に1回だけ鳴らす
+    try { const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + 0.05; o.frequency.value = 1175; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6 * met.vol, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06); o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.08); } catch(e){}
+    const b = $('metFix'), old = b.textContent; b.textContent = '✓ 作り直した（「ピッ」と鳴ったらOK）'; b.style.color = 'var(--acc)'; setTimeout(() => { b.textContent = old; b.style.color = '#bbb'; }, 2000);
+  };
   $('metSheet').querySelectorAll('[data-db]').forEach(b => b.onclick = () => metSetBpm((metRun.on ? metRun.cur : met.bpm) + Number(b.dataset.db)));
   $('metSl').oninput = e => metSetBpm(Number(e.target.value));
   let mTaps = [];
