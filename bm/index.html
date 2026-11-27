@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ジェスチャー後付けブックマークレット</title>
+<style>
+  body { margin:0; padding:20px 16px 40px; background:#0d0d0f; color:#f2f2f7; font:15px/1.6 -apple-system,"Hiragino Sans",sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:26px 0 8px; }
+  p, li { color:#c7c7cc; }
+  .card { background:#1c1c1e; border-radius:12px; padding:12px; margin:10px 0; }
+  textarea { width:100%; box-sizing:border-box; height:90px; background:#000; color:#9cf; border:1px solid #3a3a3c; border-radius:8px;
+    font:12px/1.4 ui-monospace,Menlo,monospace; padding:8px; }
+  button { width:100%; margin-top:8px; padding:12px; border:0; border-radius:10px; background:#0a84ff; color:#fff; font-size:16px; font-weight:600; }
+  button.sub { background:#3a3a3c; }
+  .ok { color:#30d158; font-size:13px; min-height:1.4em; }
+  ol { padding-left:20px; } li { margin:4px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:6px 4px; border-bottom:1px solid #2c2c2e; vertical-align:top; } td:first-child { white-space:nowrap; color:#fff; font-weight:600; }
+</style>
+</head>
+<body>
+<h1>ジェスチャー後付けブックマークレット</h1>
+<p>Webプレイヤーで再生中の動画に、長押し倍速・ダブルタップスキップ・スワイプシークを足します。動画の速度と再生位置を変えるだけ。</p>
+
+<h2>① 読み込み版（おすすめ・自動で最新）</h2>
+<div class="card">
+  <textarea id="loader" readonly></textarea>
+  <button id="cpLoader">コピー</button>
+  <div class="ok" id="okLoader"></div>
+</div>
+
+<h2>② 全部入り版（①で「読み込めへんかった」が出るサイト用）</h2>
+<div class="card">
+  <p style="margin:0 0 6px;font-size:13px">サイト側の制限で外部ファイルを読めへん時はこっち。中身を更新したらこのページから入れ直してな。</p>
+  <textarea id="full" readonly>読み込み中…</textarea>
+  <button id="cpFull" class="sub">コピー</button>
+  <div class="ok" id="okFull"></div>
+</div>
+
+<h2>iPhoneへの登録</h2>
+<ol>
+  <li>上のコードをコピー</li>
+  <li>Safariで今のこのページを開いたまま、共有ボタン →「ブックマークを追加」→ 名前を「ジェスチャー」にして保存</li>
+  <li>ブックマーク一覧 →「編集」→ さっきの「ジェスチャー」をタップ</li>
+  <li>URL欄を全部消して、コピーしたコードを貼り付けて完了</li>
+</ol>
+
+<h2>使い方</h2>
+<div class="card"><table>
+  <tr><td>起動</td><td>動画の再生を始めてから、アドレスバーに「ジェスチャー」と打って候補から選ぶ（もう一回でOFF）</td></tr>
+  <tr><td>長押し</td><td>押してる間だけ倍速（初期 2x）</td></tr>
+  <tr><td>ダブルタップ</td><td>上1/3で巻き戻し、下2/3でスキップ（初期 10秒）。続けてタップで加算</td></tr>
+  <tr><td>横スワイプ</td><td>動かした量でシーク。速く動かすほど大きく飛ぶ。離した所で移動</td></tr>
+  <tr><td>1回タップ</td><td>プレイヤーにそのまま渡す＋左上にボタンが出る</td></tr>
+  <tr><td>⚙︎</td><td>長押し速度・スキップ秒数・スワイプ感度</td></tr>
+  <tr><td>👆</td><td>ジェスチャー休止（プレイヤー本来のボタンを触りたい時）</td></tr>
+  <tr><td>⛶</td><td>ページ内で画面いっぱい。iPhoneの本物の全画面だとジェスチャーが効かへんので、こっちを使う</td></tr>
+</table></div>
+
+<script>
+  const SRC = new URL('gesture.js', location.href).href;
+  const loader = "javascript:(()=>{if(window.__gpbm)return window.__gpbm.destroy();var s=document.createElement('script');s.src='"
+    + SRC + "?'+Date.now();s.onerror=()=>alert('読み込めへんかった。全部入り版を使ってな');document.documentElement.appendChild(s)})()";
+  document.getElementById('loader').value = loader;
+
+  fetch(SRC + '?' + Date.now()).then(r => r.text()).then(code => {
+    // 行頭コメントと字下げを削って軽くする（改行は残すので行末コメントも安全）
+    const slim = code.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//')).join('\n');
+    document.getElementById('full').value = 'javascript:' + encodeURIComponent(slim);
+  }).catch(() => { document.getElementById('full').value = '読み込みに失敗。ページを開き直してな'; });
+
+  function copy(id, okId){
+    const ta = document.getElementById(id), ok = document.getElementById(okId);
+    const done = () => { ok.textContent = 'コピーした！'; setTimeout(() => ok.textContent = '', 2000); };
+    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
+    else { ta.select(); document.execCommand('copy'); done(); }
+  }
+  document.getElementById('cpLoader').onclick = () => copy('loader', 'okLoader');
+  document.getElementById('cpFull').onclick = () => copy('full', 'okFull');
+</script>
+</body>
+</html>
