@@ -25,20 +25,22 @@
   };
 
   // ---------- 動画を探す（shadow DOM・同じドメインのiframeの中も） ----------
+  let blocked = [];
   function collect(root, ox, oy, out, depth){
     if (depth > 4) return;
     root.querySelectorAll('video').forEach(v => out.push({ v, ox, oy }));
     root.querySelectorAll('*').forEach(el => { if (el.shadowRoot) collect(el.shadowRoot, ox, oy, out, depth + 1); });
     root.querySelectorAll('iframe').forEach(f => {
       try {
-        const d = f.contentDocument; if (!d) return;
+        const d = f.contentDocument; if (!d) { blocked.push(f); return; }
         const r = f.getBoundingClientRect();
         collect(d, ox + r.left + f.clientLeft, oy + r.top + f.clientTop, out, depth + 1);
-      } catch(e){}  // 別ドメインのiframeは中を見られへん
+      } catch(e){ blocked.push(f); }  // 別ドメインのiframeは中を見られへん
     });
   }
+  let lastList = [];
   function pickVideo(){
-    const list = []; collect(document, 0, 0, list, 0);
+    const list = []; blocked = []; collect(document, 0, 0, list, 0); lastList = list;
     let best = null, bestScore = 0;
     for (const c of list) {
       const r = c.v.getBoundingClientRect(), area = r.width * r.height;
@@ -50,8 +52,14 @@
   }
   let cur = pickVideo();
   if (!cur) {
-    const big = [...document.querySelectorAll('iframe')].some(f => { const r = f.getBoundingClientRect(); return r.width * r.height > 40000; });
-    alert(big ? '動画が別ドメインの枠（iframe）の中にあって触られへんかった…' : '動画が見つからへんかった。再生を始めてからもう一回押してな');
+    // 原因を調べられるように、見つかったものを全部出す
+    const vs = lastList.map(c => { const r = c.v.getBoundingClientRect(); return `${Math.round(r.width)}×${Math.round(r.height)}${c.v.paused ? '' : '(再生中)'}`; });
+    const fs = blocked.map(f => { const r = f.getBoundingClientRect(); let h = ''; try { h = new URL(f.src, location.href).hostname; } catch(e){} return `${h || '(src無し)'} ${Math.round(r.width)}×${Math.round(r.height)}`; });
+    alert('動画が見つからへんかった\n\n'
+      + 'ページ: ' + location.hostname + '\n'
+      + 'video: ' + (vs.length ? vs.join(', ') : 'なし') + '\n'
+      + '中を見られへん枠: ' + (fs.length ? fs.join(', ') : 'なし') + '\n\n'
+      + 'この画面をスクショして送ってな');
     return;
   }
   const vid = () => cur && cur.v;
@@ -66,6 +74,8 @@
         font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif; -webkit-tap-highlight-color:transparent; }
     #layer { position:absolute; inset:0; touch-action:none; pointer-events:auto; }
     #layer.pass { pointer-events:none; }
+    #flash { position:absolute; inset:0; border:4px solid #0a84ff; border-radius:6px; pointer-events:none; opacity:0; transition:opacity .4s; }
+    #flash.show { opacity:1; }
     #chip { position:absolute; right:16px; bottom:56px; pointer-events:none; text-align:right;
       color:rgba(255,255,255,.72); text-shadow:0 1px 3px rgba(0,0,0,.55);
       font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .12s; white-space:nowrap; }
@@ -85,6 +95,7 @@
     #panel p { margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.55); line-height:1.5; }
   </style>
   <div id="layer"></div>
+  <div id="flash"></div>
   <div id="chip"></div>
   <div id="bar">
     <button id="bSet" aria-label="設定">⚙︎</button>
@@ -291,6 +302,7 @@
   }
   window[NS] = { destroy };
 
-  chip('ジェスチャーON', `長押し ${rateLabel(opt.hold)}・スキップ ${opt.skip}秒`, 1500);
+  chip('ジェスチャーON', `長押し ${rateLabel(opt.hold)}・スキップ ${opt.skip}秒`, 2500);
+  const fl = $('flash'); requestAnimationFrame(() => { fl.classList.add('show'); setTimeout(() => fl.classList.remove('show'), 1200); });
   showBar();
 })();
